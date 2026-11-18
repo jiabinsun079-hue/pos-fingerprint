@@ -305,7 +305,7 @@ var TRAINER_URI = 'file:///D:/craft-anything/POS%E9%97%AE%E9%A2%98%E8%A7%A3%E6%9
 /* 自动回传落点：飞书群「自定义机器人」webhook（实测 open.feishu.cn 返回 Access-Control-Allow-Origin:*，浏览器可跨域 POST 且响应可读）。
    为空=未配置，自动回传不可用。客服在专用群添加自定义机器人（安全设置=自定义关键词 fp_handoff），把 webhook 填到这里或下方配置框。
    妙搭 automation webhook 实测无 CORS 头且跳登录，不适合公开页浏览器直发，故弃用。 */
-var REPORT_WEBHOOK = '';
+var REPORT_WEBHOOK = 'https://open.feishu.cn/open-apis/bot/v2/hook/2af700db-cb97-4363-90fe-8aa42d453ec1';
 var PRESET_META = {
   xp58:{name:'芯烨 58mm 小票机', color:'#22d3ee'},
   gp58:{name:'佳博 58mm 小票机', color:'#4d9fff'},
