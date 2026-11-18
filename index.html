@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>门店设备指纹自检台 · 装机即识别</title>
+<style>
+:root{
+  --ink:#0a0f15; --panel:#111a24; --panel2:#0d141d; --line:#1e2c3a; --line2:#2a3c4e;
+  --tx:#e9f1f7; --tx2:#93a7ba; --tx3:#5f7386;
+  --cyan:#22d3ee; --green:#3ddc84; --amber:#ffb020; --red:#ff4d6b; --magenta:#f472b6; --violet:#a78bfa; --blue:#4d9fff;
+  --ok:#3ddc84; --warn:#ffb020; --bad:#ff4d6b; --info:#22d3ee;
+  --mono:ui-monospace,'Cascadia Mono','Consolas',monospace;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html,body{height:100%;}
+body{
+  background:
+    radial-gradient(1100px 500px at 12% -8%, rgba(34,211,238,.10), transparent 60%),
+    radial-gradient(900px 480px at 88% 108%, rgba(61,220,132,.08), transparent 60%),
+    radial-gradient(700px 400px at 55% 45%, rgba(167,139,250,.05), transparent 65%),
+    var(--ink);
+  color:var(--tx); font:14px/1.55 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+  overflow:hidden;
+}
+body::before{content:""; position:fixed; inset:0; pointer-events:none; opacity:.5; z-index:0;
+  background-image:radial-gradient(rgba(233,241,247,.045) 1px, transparent 1px); background-size:26px 26px;}
+::-webkit-scrollbar{width:10px; height:10px;}
+::-webkit-scrollbar-track{background:var(--panel2);}
+::-webkit-scrollbar-thumb{background:var(--line2); border-radius:6px; border:2px solid var(--panel2);}
+::-webkit-scrollbar-thumb:hover{background:var(--cyan);}
+*{scrollbar-width:thin; scrollbar-color:var(--line2) var(--panel2);}
+#app{position:relative; z-index:1; display:grid; grid-template-rows:auto auto 1fr auto; height:100vh;}
+header{display:flex; align-items:center; gap:14px; padding:10px 18px; background:linear-gradient(90deg, rgba(17,26,36,.96), rgba(13,20,29,.92)); border-bottom:1px solid var(--line);}
+header .mark{width:34px; height:34px; flex:none; filter:drop-shadow(0 0 8px rgba(34,211,238,.45));}
+header h1{font-size:17px; letter-spacing:.5px;}
+header h1 span{color:var(--cyan); font-weight:600;}
+header .sub{color:var(--tx2); font-size:12px;}
+.caps{display:flex; gap:6px; margin-left:auto;}
+.cap{font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--line2); color:var(--tx2); background:var(--panel2); white-space:nowrap;}
+.cap.on{color:var(--green); border-color:rgba(61,220,132,.45); background:rgba(61,220,132,.08);}
+.cap.off{color:var(--tx3);}
+#envBar{display:flex; align-items:center; gap:10px; margin:10px 14px 0; padding:8px 12px; border:1px solid var(--line2); border-left:3px solid var(--green); border-radius:8px; background:linear-gradient(90deg, rgba(61,220,132,.07), rgba(21,34,48,.55)); font-size:12px;}
+#envBar.warn{border-left-color:var(--amber); background:linear-gradient(90deg, rgba(255,176,32,.09), rgba(21,34,48,.55));}
+#envBar .dot{width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); flex:none; animation:pulse 2.4s infinite;}
+#envBar.warn .dot{background:var(--amber); box-shadow:0 0 8px var(--amber);}
+#envBar .etx{color:var(--tx2); line-height:1.65; min-width:0;}
+#envBar b{color:var(--tx); margin-right:8px; white-space:nowrap;}
+#envBar button{margin-left:auto; flex:none;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.45;}}
+#clock{font-family:var(--mono); font-size:12px; color:var(--tx2); min-width:74px; text-align:right;}
+main{display:grid; grid-template-columns:400px minmax(380px,1fr) 430px; gap:12px; padding:12px 14px; min-height:0;}
+.col{min-height:0; display:flex; flex-direction:column; gap:12px; overflow-y:auto; padding-right:2px;}
+.card{background:linear-gradient(160deg, var(--panel), var(--panel2)); border:1px solid var(--line); border-radius:10px; padding:12px 14px; animation:rise .5s cubic-bezier(.2,.8,.2,1) backwards;}
+.col>.card:nth-child(1){animation-delay:.05s}.col>.card:nth-child(2){animation-delay:.12s}.col>.card:nth-child(3){animation-delay:.19s}.col>.card:nth-child(4){animation-delay:.26s}
+@keyframes rise{from{opacity:0; transform:translateY(14px);}to{opacity:1; transform:none;}}
+.sec{font-size:12px; letter-spacing:2px; color:var(--tx2); margin-bottom:8px; display:flex; align-items:center; gap:8px;}
+.sec b{color:var(--cyan); font-weight:600;}
+.stage{position:relative; border:1px solid var(--line); border-radius:8px; padding:9px 11px; margin-bottom:8px; background:rgba(10,15,21,.5); overflow:hidden;}
+.stage.active{border-color:rgba(34,211,238,.5);}
+.stage.active::after{content:""; position:absolute; top:0; bottom:0; width:46%; left:-50%;
+  background:linear-gradient(90deg, transparent, rgba(34,211,238,.14), transparent); animation:beam 1.1s linear infinite;}
+@keyframes beam{to{left:110%;}}
+.stage .hd{display:flex; align-items:center; gap:8px; font-size:13px;}
+.stage .hd .no{font-family:var(--mono); font-size:11px; color:var(--tx3);}
+.chip{margin-left:auto; font-size:11px; padding:2px 9px; border-radius:12px; border:1px solid var(--line2); color:var(--tx2); white-space:nowrap;}
+.chip.run{color:var(--cyan); border-color:rgba(34,211,238,.5); background:rgba(34,211,238,.08);}
+.chip.done{color:var(--green); border-color:rgba(61,220,132,.45); background:rgba(61,220,132,.08);}
+.chip.na{color:var(--tx3);}
+.chip.warn{color:var(--amber); border-color:rgba(255,176,32,.45); background:rgba(255,176,32,.08);}
+.stage .kv{font-size:12px; color:var(--tx2); margin-top:5px; word-break:break-all;}
+.stage .kv b{color:var(--tx); font-weight:600;}
+.bar{height:3px; background:var(--line); border-radius:2px; margin-top:7px; overflow:hidden;}
+.bar i{display:block; height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--green)); transition:width .25s;}
+#trace{font-family:var(--mono); font-size:11px; line-height:1.7; color:var(--tx2); background:#080c11; border:1px solid var(--line); border-radius:8px; padding:8px 10px; height:132px; overflow-y:auto; white-space:pre-wrap;}
+#trace .t-ok{color:var(--green);} #trace .t-warn{color:var(--amber);} #trace .t-bad{color:var(--red);} #trace .t-info{color:var(--cyan);}
+.ctl{display:grid; grid-template-columns:1fr 1fr; gap:9px 12px;}
+.ctl label{display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--tx2);}
+.ctl label .row{display:flex; align-items:center; gap:8px;}
+.ctl input[type=range]{flex:1; accent-color:var(--cyan); height:18px;}
+.ctl .val{font-family:var(--mono); font-size:11px; color:var(--cyan); min-width:44px; text-align:right;}
+.ctl input[type=text],.ctl select,.ctl input[type=number]{background:var(--panel2); border:1px solid var(--line2); color:var(--tx); border-radius:6px; padding:5px 8px; font-size:12px; width:100%;}
+.ctl input:focus,.ctl select:focus{outline:none; border-color:var(--cyan);}
+.sw{display:flex; align-items:center; gap:7px; cursor:pointer; user-select:none; font-size:12px; color:var(--tx2);}
+.sw input{accent-color:var(--green); width:15px; height:15px; cursor:pointer;}
+.btns{display:flex; flex-wrap:wrap; gap:7px; margin-top:11px;}
+button{font:inherit; cursor:pointer; border-radius:7px; border:1px solid var(--line2); background:var(--panel2); color:var(--tx); padding:6px 12px; font-size:12.5px; transition:transform .12s, border-color .12s, background .12s;}
+button:hover{border-color:var(--cyan); transform:translateY(-1px);}
+button:active{transform:translateY(0);}
+button.pri{background:linear-gradient(120deg, rgba(34,211,238,.22), rgba(61,220,132,.22)); border-color:rgba(34,211,238,.55); color:#dffcff; font-weight:600;}
+button.danger{border-color:rgba(255,77,107,.5); color:#ffd7dd;}
+button.mini{padding:3px 9px; font-size:11.5px;}
+#verdict{border-radius:10px; padding:12px 14px; border:1px solid var(--line2); background:var(--panel2); display:flex; align-items:center; gap:12px;}
+#verdict.ok{border-color:rgba(61,220,132,.55); background:linear-gradient(120deg, rgba(61,220,132,.12), rgba(34,211,238,.06));}
+#verdict.warn{border-color:rgba(255,176,32,.55); background:linear-gradient(120deg, rgba(255,176,32,.12), rgba(244,114,182,.05));}
+#verdict.none{border-color:var(--line2);}
+#verdict .vt{font-size:14px; font-weight:700;}
+#verdict .vs{font-size:12px; color:var(--tx2);}
+.dial{width:74px; height:74px; flex:none;}
+.dial .bg{stroke:var(--line2); }
+.dial .fg{stroke:url(#dialgrad); stroke-linecap:round; transition:stroke-dashoffset .7s cubic-bezier(.2,.8,.2,1);}
+.dial text{fill:var(--tx); font-family:var(--mono); font-size:15px; font-weight:700;}
+.hostline{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;}
+.hostline .model{font-size:22px; font-weight:800; letter-spacing:.5px; background:linear-gradient(90deg, var(--cyan), var(--green)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+.hostline .os{font-size:12px; color:var(--tx2); border:1px solid var(--line2); padding:2px 9px; border-radius:12px;}
+.plist{display:flex; flex-direction:column; gap:9px; margin-top:10px;}
+.prow{border:1px solid var(--line); border-left:3px solid var(--violet); border-radius:8px; padding:9px 11px; background:rgba(10,15,21,.5);}
+.prow.usb{border-left-color:var(--violet);} .prow.lan{border-left-color:var(--blue);} .prow.bt{border-left-color:var(--magenta);} .prow.spooler{border-left-color:var(--amber);}
+.prow .ph{display:flex; align-items:center; gap:8px; font-size:13px; flex-wrap:wrap;}
+.prow .ph .nm{font-weight:700;}
+.prow .vid{font-family:var(--mono); font-size:11px; color:var(--tx3);}
+.preset{font-size:11px; padding:2px 9px; border-radius:12px; border:1px solid; white-space:nowrap;}
+.prow .rs{font-size:11.5px; color:var(--tx2); margin-top:4px;}
+.prow .cf{margin-left:auto; font-family:var(--mono); font-size:12px;}
+.empty{color:var(--tx3); font-size:12.5px; padding:14px 6px; text-align:center; line-height:2;}
+.fhead{display:flex; gap:7px; align-items:center; flex-wrap:wrap; margin-bottom:9px;}
+.fhead input[type=text]{flex:1; min-width:110px; background:var(--panel2); border:1px solid var(--line2); color:var(--tx); border-radius:6px; padding:5px 9px; font-size:12px;}
+.fhead select{background:var(--panel2); border:1px solid var(--line2); color:var(--tx); border-radius:6px; padding:5px 6px; font-size:12px;}
+table{width:100%; border-collapse:collapse; font-size:12px;}
+th{color:var(--tx3); font-weight:600; text-align:left; padding:5px 6px; border-bottom:1px solid var(--line2); cursor:pointer; user-select:none; white-space:nowrap;}
+th:hover{color:var(--cyan);}
+th .ar{color:var(--cyan);}
+td{padding:6px 6px; border-bottom:1px solid var(--line); vertical-align:middle;}
+tbody tr{cursor:pointer; transition:background .12s;}
+tbody tr:hover{background:rgba(34,211,238,.06);}
+tbody tr.sel{background:rgba(34,211,238,.10);}
+tbody tr[draggable=true]{cursor:grab;}
+tbody tr.drop-hint{outline:1px dashed var(--cyan); outline-offset:-2px;}
+.drag{color:var(--tx3); margin-right:6px; cursor:grab; user-select:none;}
+td input[type=checkbox]{accent-color:var(--cyan); cursor:pointer;}
+.src{font-size:10.5px; padding:1px 7px; border-radius:10px; border:1px solid var(--line2); color:var(--tx2); white-space:nowrap;}
+.src.real{color:var(--green); border-color:rgba(61,220,132,.4);}
+.src.demo{color:var(--magenta); border-color:rgba(244,114,182,.4);}
+.bulk{display:none; align-items:center; gap:8px; margin-bottom:8px; font-size:12px; color:var(--cyan);}
+.bulk.on{display:flex;}
+#drawer{position:fixed; top:0; right:0; width:460px; max-width:94vw; height:100vh; z-index:40; background:linear-gradient(200deg, #14202c, #0c131b); border-left:1px solid var(--line2); box-shadow:-18px 0 44px rgba(0,0,0,.5); transform:translateX(105%); transition:transform .3s cubic-bezier(.2,.8,.2,1); display:flex; flex-direction:column;}
+#drawer.on{transform:translateX(0);}
+#drawer .dh{padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px;}
+#drawer .dh h3{font-size:15px;}
+#drawer .db{padding:14px 16px; overflow-y:auto; flex:1;}
+#drawer .df{padding:12px 16px; border-top:1px solid var(--line); display:flex; gap:8px; flex-wrap:wrap;}
+#scrim{position:fixed; inset:0; background:rgba(4,8,12,.55); backdrop-filter:blur(2px); z-index:35; opacity:0; pointer-events:none; transition:opacity .25s;}
+#scrim.on{opacity:1; pointer-events:auto;}
+.kvt{width:100%; font-size:12px; border-collapse:collapse;}
+.kvt td{border-bottom:1px solid var(--line); padding:5px 4px;}
+.kvt td:first-child{color:var(--tx3); width:96px; white-space:nowrap;}
+#drawer textarea{width:100%; background:var(--panel2); border:1px solid var(--line2); color:var(--tx); border-radius:6px; padding:7px 9px; font:12px/1.6 var(--mono); min-height:64px; resize:vertical;}
+#toasts{position:fixed; bottom:52px; left:50%; transform:translateX(-50%); z-index:60; display:flex; flex-direction:column; gap:8px; align-items:center;}
+.toast{background:#152230; border:1px solid var(--line2); border-left:3px solid var(--cyan); border-radius:8px; padding:8px 14px; font-size:12.5px; box-shadow:0 8px 26px rgba(0,0,0,.45); display:flex; gap:10px; align-items:center; animation:rise .3s backwards;}
+.toast.ok{border-left-color:var(--green);} .toast.warn{border-left-color:var(--amber);} .toast.bad{border-left-color:var(--red);}
+footer{display:flex; gap:16px; align-items:center; padding:6px 18px; border-top:1px solid var(--line); background:var(--panel2); color:var(--tx3); font-size:11.5px;}
+footer .sp{margin-left:auto;}
+@media (max-width:1500px){ main{grid-template-columns:360px minmax(340px,1fr) 380px;} }
+@media (max-width:1180px){ body{overflow:auto;} #app{height:auto; min-height:100vh;} main{grid-template-columns:1fr; } .col{overflow:visible;} #drawer{width:94vw;} }
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+  <svg class="mark" viewBox="0 0 40 40" fill="none"><defs><linearGradient id="mg" x1="0" y1="0" x2="40" y2="40"><stop stop-color="#22d3ee"/><stop offset="1" stop-color="#3ddc84"/></linearGradient></defs><path d="M20 4c-8 0-14 6-14 14v6M20 4c8 0 14 6 14 14v10M20 10c-5 0-9 4-9 9v9M20 10c5 0 9 4 9 9v5M20 16c-2.4 0-4 1.8-4 4v10M20 16c2.4 0 4 1.8 4 4v6M20 22v12" stroke="url(#mg)" stroke-width="2.2" stroke-linecap="round"/></svg>
+  <h1>门店设备指纹<span>自检台</span></h1>
+  <div class="sub">装机即识别 · POS 型号 + 打印机型号自动抓取 · 无需人工报型号</div>
+  <div class="caps">
+    <span class="cap" id="capUsb">WebUSB …</span>
+    <span class="cap" id="capBt">蓝牙 …</span>
+    <span class="cap" id="capUa">UA …</span>
+  </div>
+  <div id="clock">--:--:--</div>
+</header>
+<div id="envBar">
+  <span class="dot"></span>
+  <div class="etx"><b id="envTitle">打开环境检测中…</b><span id="envMsg">—</span></div>
+  <button class="mini" id="envAct" hidden>去 Windows 补采 ↓</button>
+</div>
+<main>
+  <div class="col" id="colL">
+    <div class="card">
+      <div class="sec"><b>采集流水线</b> LIVE PIPELINE</div>
+      <div class="stage" id="st0"><div class="hd"><span class="no">L0</span>设备身份（UA / 高熵指纹）<span class="chip" id="ch0">待采</span></div><div class="kv" id="kv0">—</div><div class="bar"><i id="pb0"></i></div></div>
+      <div class="stage" id="st1"><div class="hd"><span class="no">L1</span>USB 打印机枚举（VID/PID/产品名）<span class="chip" id="ch1">待采</span></div><div class="kv" id="kv1">—</div><div class="bar"><i id="pb1"></i></div></div>
+      <div class="stage" id="st2"><div class="hd"><span class="no">L2</span>网口候选扫描（9100 静默 + 80 快拒佐证）<span class="chip" id="ch2">待采</span></div><div class="kv" id="kv2">—</div><div class="bar"><i id="pb2"></i></div></div>
+      <div class="stage" id="st3"><div class="hd"><span class="no">L3</span>匹配裁决（指纹表 + 置信度）<span class="chip" id="ch3">待采</span></div><div class="kv" id="kv3">—</div><div class="bar"><i id="pb3"></i></div></div>
+      <div id="trace"></div>
+    </div>
+    <div class="card">
+      <div class="sec"><b>控制台</b> 实时生效</div>
+      <div class="ctl">
+        <label>置信阈值（低于=未确认）<span class="row"><input type="range" id="cThr" min="0.3" max="0.9" step="0.05" value="0.6"><span class="val" id="vThr">0.60</span></span></label>
+        <label>LAN 扫描并发<span class="row"><input type="range" id="cCon" min="8" max="64" step="8" value="32"><span class="val" id="vCon">32</span></span></label>
+        <label>单端口超时 ms<span class="row"><input type="number" id="cTo" min="200" max="3000" step="100" value="1200"><span class="val" id="vTo">1200</span></span></label>
+        <label>匹配策略<span class="row"><select id="cMode"><option value="auto">auto（最佳候选）</option><option value="strict">strict（须过阈值）</option></select></span></label>
+        <label style="grid-column:1/-1">扫描网段（CIDR 或单 IP）<span class="row"><input type="text" id="cNet" value="192.168.1.0/24" spellcheck="false"><select id="cNetPre" style="width:130px"><option value="">常用网段…</option><option>192.168.1.0/24</option><option>192.168.0.0/24</option><option>192.168.28.0/24</option><option>10.0.0.0/24</option><option>127.0.0.1/32</option></select></span></label>
+        <label class="sw"><input type="checkbox" id="cLan" checked>启用 LAN 启发式扫描</label>
+        <label class="sw"><input type="checkbox" id="cBt" checked>蓝牙可用性探测</label>
+        <label class="sw"><input type="checkbox" id="cAuto" checked>采集完成自动入库</label>
+        <label class="sw"><input type="checkbox" id="cOpen">枚举时打开设备读接口类</label>
+      </div>
+      <div class="btns">
+        <button class="pri" id="bRun">重新采集</button>
+        <button id="bUsb">授权并枚举 USB</button>
+        <button id="bLan">扫描 LAN</button>
+        <button id="bExport">导出本条 JSON</button>
+        <button id="bLink">复制诊断深链</button>
+        <button id="bReset">重置控制</button>
+      </div>
+    </div>
+  </div>
+  <div class="col" id="colM">
+    <div class="card">
+      <div class="sec"><b>本机身份</b> IDENTITY</div>
+      <div class="hostline"><span class="model" id="hostModel">采集中…</span><span class="os" id="hostOs">—</span><span class="os" id="hostKind">—</span></div>
+      <div class="kv" style="font-size:12px;color:var(--tx2);margin-top:6px" id="hostExtra">—</div>
+    </div>
+    <div id="verdict" class="none">
+      <svg class="dial" viewBox="0 0 80 80"><defs><linearGradient id="dialgrad" x1="0" y1="0" x2="80" y2="80"><stop stop-color="#22d3ee"/><stop offset="1" stop-color="#3ddc84"/></linearGradient></defs><circle class="bg" cx="40" cy="40" r="32" fill="none" stroke-width="7"/><circle class="fg" id="dialFg" cx="40" cy="40" r="32" fill="none" stroke-width="7" stroke-dasharray="201" stroke-dashoffset="201" transform="rotate(-90 40 40)"/><text x="40" y="45" text-anchor="middle" id="dialTx">0%</text></svg>
+      <div><div class="vt" id="verdictT">等待采集</div><div class="vs" id="verdictS">点击「重新采集」或等待自动流水线</div></div>
+    </div>
+    <div class="card">
+      <div class="sec"><b>打印机候选</b> 按置信度排序</div>
+      <div class="plist" id="plist"><div class="empty">尚未发现打印机候选<br>USB 需一次授权点击；网口扫描为启发式候选</div></div>
+      <div class="btns"><button class="pri" id="bSave">入库本机记录</button><button id="bTrainer">在 3D 解剖台打开匹配型号</button></div>
+    </div>
+    <div class="card">
+      <div class="sec"><b>Windows 补采</b> 浏览器拿不到 WMI / 打印驱动队列时</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.8;margin-bottom:8px">
+        Windows 收银机：浏览器无权限读硬件型号，WebUSB 也看不到装了正常打印驱动的 USB 打印机。<br>
+        在本机 PowerShell 跑一行只读采集，把输出粘回来即合并（主机型号 + 物理队列 + 驱动名匹配）。
+      </div>
+      <div class="btns" style="margin-top:0"><button id="bCopyPs">复制采集命令</button><button class="pri" id="bMerge">合并补采 JSON</button></div>
+      <textarea id="mergeBox" style="width:100%;margin-top:9px;background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:7px 9px;font:11.5px/1.6 var(--mono);min-height:74px;resize:vertical" placeholder='粘贴 windows_collect.ps1 输出的 JSON（{"v":1,"source":"windows_collect",…}）' spellcheck="false"></textarea>
+    </div>
+    <div class="card">
+      <div class="sec"><b>AI 回传桥</b> RETURN LOOP · 结果出去 / 修订回来</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.8;margin-bottom:8px">
+        回传包内嵌「给 AI 的指令」+ 全部机队记录：粘回 Qoder 会话，AI 即能解析结果、核对置信、定位卡点并产出修订。<br>
+        修订包只含数据（VID/PID 实测条目 / 记录覆盖），不含代码；应用后持久化、重新裁决。
+      </div>
+      <div class="btns" style="margin-top:0"><button class="pri" id="bHandoff">生成回传包并复制</button><button id="bHandoffDl">下载 .txt</button></div>
+      <textarea id="handoffBox" readonly style="width:100%;margin-top:9px;background:var(--panel2);border:1px solid var(--line2);color:var(--tx2);border-radius:6px;padding:7px 9px;font:11px/1.6 var(--mono);min-height:96px;resize:vertical" placeholder="点击「生成回传包并复制」→ 整段粘回 AI 会话" spellcheck="false"></textarea>
+      <div style="border-top:1px dashed var(--line2);margin:10px 0 8px"></div>
+      <div class="btns" style="margin-top:0"><button class="pri" id="bRevApply">应用 AI 修订包</button></div>
+      <textarea id="revBox" style="width:100%;margin-top:9px;background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:7px 9px;font:11.5px/1.6 var(--mono);min-height:64px;resize:vertical" placeholder='粘贴修订包 JSON（{"v":1,"source":"ai_revision",…}）' spellcheck="false"></textarea>
+      <div class="kv" id="revStatus" style="font-size:11.5px;color:var(--tx3);margin-top:6px">尚未应用修订</div>
+    </div>
+    <div class="card">
+      <div class="sec"><b>指纹表状态</b> FINGERPRINT DB</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.9">
+        产品名/驱动名规则：<b style="color:var(--tx)">7 族</b>（xp330b 优先于 xp58，避免 xprinter 吞并）<br>
+        VID/PID 实测表：<b style="color:var(--amber)" id="vidCount">0 条</b> —— 待真机积累，未实测不入库<br>
+        置信度口径：产品名型号命中 0.85 · 厂商命中 0.60 · 标签关键词 0.30 · VID/PID 实测 0.90 · LAN 启发式 0.25
+      </div>
+    </div>
+  </div>
+  <div class="col" id="colR">
+    <div class="card" style="flex:1; display:flex; flex-direction:column; min-height:320px;">
+      <div class="sec"><b>机队记录</b> FLEET <span style="margin-left:auto;color:var(--tx3);letter-spacing:0" id="fCount">0 条</span></div>
+      <div class="fhead">
+        <input type="text" id="fSearch" placeholder="搜索型号 / 产品名 / 预设…">
+        <select id="fSrc"><option value="">全部来源</option><option value="real">实测</option><option value="demo">演示</option></select>
+        <select id="fPreset"><option value="">全部预设</option></select>
+        <select id="fView"><option value="">保存的视图…</option></select>
+        <button class="mini" id="bViewSave">存视图</button>
+      </div>
+      <div class="bulk" id="bulk"><span id="bulkN">0 选中</span><button class="mini" id="bBulkExport">导出选中</button><button class="mini danger" id="bBulkDel">删除选中</button><button class="mini" id="bBulkClear">取消</button></div>
+      <div style="overflow:auto; flex:1;">
+        <table>
+          <thead><tr><th style="width:26px"><input type="checkbox" id="fAll"></th><th data-sort="manual" title="手动排序：拖动行调整跟进优先级">顺序 <span class="ar" id="arManual"></span></th><th data-sort="model">设备 <span class="ar" id="arModel"></span></th><th data-sort="preset">打印机 <span class="ar" id="arPreset"></span></th><th data-sort="conf">置信 <span class="ar" id="arConf"></span></th><th data-sort="ts">时间 <span class="ar" id="arTs"></span></th></tr></thead>
+          <tbody id="fBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>
+  <span>企迈客服 · POS问题解析工具组</span>
+  <span>输出与 probe_kit diagnose 同构：preset_guess / confidence / signals / deep_link</span>
+  <span class="sp">v1.0 · 单文件离线 · LAN 扫描为启发式候选，不作为实测结论</span>
+</footer>
+</div>
+<div id="scrim"></div>
+<div id="drawer">
+  <div class="dh"><h3 id="dTitle">记录详情</h3><span class="src" id="dSrc"></span><button class="mini" style="margin-left:auto" id="dClose">关闭</button></div>
+  <div class="db" id="dBody"></div>
+  <div class="df"><button class="pri" id="dLink">复制诊断深链</button><button id="dExport">导出 JSON</button><button class="danger" id="dDel">删除</button></div>
+</div>
+<div id="toasts"></div>
+<script>
+"use strict";
+/* 门店设备指纹自检台 —— 零依赖单文件。装机打开即自动抓取 POS 型号与打印机型号。
+   载体：Windows/Android 浏览器(WebUSB)； locked-down 商米走 sunmi_collect.sh(adb) 同构输出。 */
+var TRAINER_URI = 'file:///D:/craft-anything/POS%E9%97%AE%E9%A2%98%E8%A7%A3%E6%9E%90/printer_probe/printer_3d/printer_teardown_3d.html';
+var PRESET_META = {
+  xp58:{name:'芯烨 58mm 小票机', color:'#22d3ee'},
+  gp58:{name:'佳博 58mm 小票机', color:'#4d9fff'},
+  hprt80:{name:'汉印 80mm 小票机', color:'#3ddc84'},
+  rd80:{name:'容大 80mm 小票机', color:'#a78bfa'},
+  epson80:{name:'爱普生 80mm 小票机', color:'#ffb020'},
+  comet58:{name:'科密 58mm 小票机', color:'#f472b6'},
+  xp330b:{name:'芯烨 XP-330B 标签机', color:'#3ddc84'}
+};
+var BRAND_RULES = [
+  ['xp330b', /xp-?330/i, 0.85],
+  ['xp58', /xprinter|芯烨|xp-?58/i, 0.60],
+  ['gp58', /gprinter|佳博|gp-?58/i, 0.60],
+  ['hprt80', /hprt|汉印/i, 0.60],
+  ['rd80', /rongda|容大/i, 0.60],
+  ['epson80', /epson|爱普生|tm-?t8/i, 0.60],
+  ['comet58', /comet|科密/i, 0.60]
+];
+var VID_PID = {}; /* '0xvid:0xpid': {preset,conf,evidence}。仅 AI 修订包带真机证据回灌，未实测不写。 */
+var SUNMI_MODELS = ['T2','T2s','T2 Lite','D2','D2s','D3','V2 Pro','V2','K2','M2','M2 Max','T1','T1 Host'];
+var state = {
+  host:null, usb:[], lan:[], spooler:[], bt:null, printers:[], guess:null, conf:0, signals:[],
+  ctl:{thr:0.6, con:32, to:1200, mode:'auto', net:'192.168.1.0/24', lan:true, bt:true, auto:true, open:false},
+  records:[], views:[], manual:[], search:'', fSrc:'', fPreset:'', sort:{key:'ts', dir:-1}, bulk:{},
+  running:false, last:null
+};
+var $ = function(id){ return document.getElementById(id); };
+function trace(msg, cls){ var t=$('trace'); var line=document.createElement('div'); if(cls) line.className='t-'+cls; line.textContent='['+new Date().toTimeString().slice(0,8)+'] '+msg; t.appendChild(line); while(t.childNodes.length>220) t.removeChild(t.firstChild); t.scrollTop=t.scrollHeight; }
+function toast(msg, kind, action){ var box=document.createElement('div'); box.className='toast'+(kind?' '+kind:''); var s=document.createElement('span'); s.textContent=msg; box.appendChild(s); if(action){ var b=document.createElement('button'); b.className='mini'; b.textContent=action.label; b.onclick=function(){ action.fn(); box.remove(); }; box.appendChild(b); } $('toasts').appendChild(box); setTimeout(function(){ box.remove(); }, action?6000:3200); }
+function setStage(i, status, kv, pct){ var ch=$('ch'+i); ch.className='chip '+({run:'run',done:'done',na:'na',warn:'warn'}[status]||''); ch.textContent={run:'采集中',done:'完成',na:'不可用',warn:'候选'}[status]||status; $('st'+i).classList.toggle('active', status==='run'); if(kv!==undefined) $('kv'+i).innerHTML=kv; if(pct!==undefined) $('pb'+i).style.width=pct+'%'; }
+function hex4(n){ return '0x'+('0000'+n.toString(16)).slice(-4); }
+/* ---------- L0 设备身份 ---------- */
+function parseUA(){
+  var ua=navigator.userAgent, h={kind:'unknown', model:null, os:null, ua:ua, sunmi:false};
+  var m=ua.match(/Android\s+([\d.]+);\s*([^;)]+?)(?:\s+Build\/|\))/);
+  if(m){ h.os='Android '+m[1]; h.model=m[2].trim(); h.kind='android-pos'; }
+  else if(/Windows NT/.test(ua)){ h.os='Windows '+(ua.match(/Windows NT ([\d.]+)/)||[])[1]; h.kind='windows-pos'; h.model=null; }
+  else if(/iPhone|iPad/.test(ua)){ h.os='iOS'; h.kind='ios'; }
+  else if(/Linux/.test(ua)){ h.os='Linux'; h.kind='linux'; }
+  if(/SUNMI/i.test(ua)) h.sunmi=true;
+  if(h.model && SUNMI_MODELS.some(function(s){ return h.model.toUpperCase().indexOf(s.toUpperCase())===0; })) h.sunmi=true;
+  return h;
+}
+async function collectHost(){
+  setStage(0,'run','解析 UA…',30);
+  var h=parseUA();
+  try{
+    if(navigator.userAgentData && navigator.userAgentData.getHighEntropyValues){
+      var he=await navigator.userAgentData.getHighEntropyValues(['model','platform','platformVersion','architecture']);
+      if(he.model){ h.model=he.model; h.heModel=true; }
+      if(he.platform) h.os=(h.os?h.os+' · ':'')+he.platform+(he.platformVersion?' '+he.platformVersion:'');
+      if(he.platform==='Android' || /SUNMI/i.test(he.model||'')) h.sunmi=true;
+      if(he.model && SUNMI_MODELS.some(function(s){ return he.model.toUpperCase().indexOf(s.toUpperCase())===0; })) h.sunmi=true;
+      trace('L0 高熵指纹 model='+he.model, 'ok');
+    }
+  }catch(e){ trace('L0 高熵指纹不可用: '+e.message, 'warn'); }
+  h.sn=null;
+  state.host=h;
+  var label = h.model || (h.kind==='windows-pos'?'Windows 收银机（型号用下方 Windows 补采 / probe_kit 补全）':'未知设备');
+  $('hostModel').textContent=label;
+  $('hostOs').textContent=h.os||'—';
+  $('hostKind').textContent = h.sunmi?'商米 SUNMI（候选）':({ 'android-pos':'Android POS', 'windows-pos':'Windows POS', 'ios':'iOS', 'linux':'Linux' }[h.kind]||h.kind);
+  $('hostExtra').textContent='UA: '+h.ua.slice(0,150);
+  setStage(0,'done','<b>'+label+'</b> · '+(h.os||'—')+(h.sunmi?' · 商米候选':''),100);
+  trace('L0 设备身份: '+label+' / '+(h.os||'?'), 'ok');
+  $('capUa').className='cap on'; $('capUa').textContent='UA ✓';
+  return h;
+}
+/* ---------- 打开环境自报：哪种内核打开决定哪些能力可用，降级时直接给兜底路径 ---------- */
+function detectEnv(){
+  var ua=navigator.userAgent;
+  var e={ proto:location.protocol, secure:window.isSecureContext===true,
+    usb:!!navigator.usb, uaData:!!(navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues),
+    webview:/;\s*wv\)|Version\/4\.0|MicroMessenger|QQ\/|MQQBrowser|TBS\/|Lark\/|Feishu/i.test(ua),
+    android:/Android/i.test(ua), windows:/Windows NT/i.test(ua) };
+  if(!e.secure){ e.level='warn'; e.title='非安全上下文 · '+e.proto+'// 打开';
+    e.msg='经局域网链接等方式打开时，浏览器禁用 WebUSB 与高熵指纹。把 HTML 文件本身发到收银机本地打开即恢复全能力；UA 仍可解析型号，补采合并仍可用。'+(e.windows?' 注意：Windows 载体本地打开后仍须 windows_collect.ps1 补采型号与打印队列。':''); if(e.windows) e.act='ps'; }
+  else if(e.windows){ e.level='warn'; e.title='Windows 载体 · 浏览器能力边界';
+    e.msg='浏览器读不到硬件型号（WMI），也看不到装了正常打印驱动的 USB 打印机。在本机跑 windows_collect.ps1，输出粘到下方「Windows 补采」合并；或直接用 probe_kit diagnose。'; e.act='ps'; }
+  else if(e.android&&e.webview){ e.level='warn'; e.title='应用内预览 / WebView 内核';
+    e.msg='USB 枚举与高熵指纹可能不可用：试右上角 ⋯「在浏览器 / Chrome 打开」；若打印机被收银 App 独占，由客服侧远程协助跑 sunmi_collect.sh（adb 只读，不受独占影响）。'; }
+  else if(!e.usb||!e.uaData){ e.level='warn'; e.title='浏览器内核能力不全';
+    e.msg='WebUSB 或高熵指纹不可用（旧内核/被禁用）。型号仍可由 UA 解析；打印机走补采脚本：Windows 用 windows_collect.ps1，商米用 sunmi_collect.sh。'; }
+  else { e.level='ok'; e.title='Android + 完整浏览器内核';
+    e.msg='环境齐备：主机型号自动读取，USB 一次授权即枚举打印机。若枚举 0 台多为收银 App 独占 → 改走 sunmi_collect.sh。'; }
+  if(e.secure && e.proto==='https:'){ e.lanHttps=true; e.msg+='（https 托管：浏览器禁混合内容，LAN 启发式自动关闭；USB/型号主路不受影响。）'; }
+  state.env=e; return e;
+}
+function renderEnv(){
+  var e=state.env;
+  $('envBar').className=e.level==='warn'?'warn':'';
+  $('envTitle').textContent=e.title;
+  $('envMsg').textContent=e.msg;
+  $('envAct').hidden=e.act!=='ps';
+  trace('打开环境: '+e.title+' · secure='+e.secure+' usb='+e.usb+' uaData='+e.uaData+' webview='+e.webview, e.level==='warn'?'warn':'ok');
+}
+/* ---------- L1 USB ---------- */
+function matchText(txt){
+  if(!txt) return null;
+  for(var i=0;i<BRAND_RULES.length;i++){ var r=BRAND_RULES[i]; if(r[1].test(txt)) return {preset:r[0], conf:r[2], reason:'产品名/厂商名命中 '+r[1].source}; }
+  if(/label|标签|barcode/i.test(txt)) return {preset:'xp330b', conf:0.30, reason:'标签关键词猜测（未确认）'};
+  return null;
+}
+function matchUsb(d){
+  var key=hex4(d.vendorId)+':'+hex4(d.productId);
+  var vp=VID_PID[key];
+  if(vp) return {preset:vp.preset, conf:vp.conf||0.90, reason:'VID/PID 实测表命中 '+key+(vp.evidence?'（'+vp.evidence+'）':'')};
+  var m=matchText(d.productName)||matchText(d.manufacturerName);
+  if(m) return m;
+  if(d.printerClass) return {preset:null, conf:0.20, reason:'USB 接口类=7（打印机），型号未知'};
+  return null;
+}
+async function readUsbDevices(list){
+  var out=[];
+  for(var i=0;i<list.length;i++){
+    var d=list[i], rec={vendorId:d.vendorId, productId:d.productId, productName:d.productName||'', manufacturerName:d.manufacturerName||'', serial:d.serialNumber||'', printerClass:false, attach:'usb'};
+    if(state.ctl.open){
+      try{ await d.open(); var cfg=d.configuration; if(cfg){ rec.printerClass=cfg.interfaces.some(function(it){ return it.interfaceClass===7; }); } await d.close(); }
+      catch(e){ trace('L1 打开设备失败(不影响枚举): '+e.message, 'warn'); }
+    } else { rec.printerClass = (d.deviceClass===7); }
+    out.push(rec);
+  }
+  return out;
+}
+async function collectUsb(request){
+  if(!navigator.usb){ setStage(1,'na','此浏览器/容器无 WebUSB（WebView 常见）→ 走 adb 采集脚本或 LAN 候选',0); $('capUsb').className='cap off'; $('capUsb').textContent='WebUSB ✗'; trace('L1 WebUSB 不可用', 'warn'); return []; }
+  $('capUsb').className='cap on'; $('capUsb').textContent='WebUSB ✓';
+  setStage(1,'run','枚举中…',40);
+  var devs=[];
+  try{
+    devs=await navigator.usb.getDevices();
+    if(request || devs.length===0){
+      if(request){ var nd=await navigator.usb.requestDevice({filters:[]}); if(nd) devs=devs.concat([nd]); }
+    }
+  }catch(e){ trace('L1 枚举/授权: '+e.message, 'warn'); }
+  var recs=await readUsbDevices(devs);
+  state.usb=recs;
+  var printers=recs.filter(function(r){ return r.printerClass || matchText(r.productName) || matchText(r.manufacturerName); });
+  setStage(1, recs.length?'done':'na', 'USB 设备 <b>'+recs.length+'</b> 台 · 打印机候选 <b>'+printers.length+'</b> 台'+(recs.length?'':'（无已授权设备；点「授权并枚举 USB」）'),100);
+  trace('L1 USB 枚举 '+recs.length+' 台，打印机候选 '+printers.length, recs.length?'ok':'warn');
+  recs.forEach(function(r){ trace('   usb '+hex4(r.vendorId)+':'+hex4(r.productId)+' '+(r.productName||'(无产品名)')+(r.printerClass?' [class7]':''), 'info'); });
+  return recs;
+}
+/* ---------- L2 LAN 启发式 ---------- */
+function netTargets(cidr){
+  cidr=(cidr||'').trim();
+  var m=cidr.match(/^(\d+\.\d+\.\d+\.\d+)\/(\d+)$/);
+  if(!m){ return /^(\d+\.\d+\.\d+\.\d+)$/.test(cidr)?[cidr]:[]; }
+  var bits=parseInt(m[2],10); if(bits<24||bits>32) return [];
+  var parts=m[1].split('.').map(Number); var base=(parts[0]<<24|parts[1]<<16|parts[2]<<8)>>>0;
+  var n=Math.pow(2,32-bits), out=[];
+  for(var i=0;i<n;i++){ var ip=(base+i)>>>0; out.push([(ip>>>24)&255,(ip>>>16)&255,(ip>>>8)&255,ip&255].join('.')); }
+  return out;
+}
+function probePort(ip, port, to){
+  return new Promise(function(res){
+    var t0=performance.now(), done=false;
+    /* 启发式：fetch 探针。快速 TypeError≈拒连(主机活着)；撑到超时≈死主机或 raw 打印口(接受 TCP 不应答 HTTP)。
+       用 80 端口的快速拒连佐证区分死主机与 raw 口（515 属浏览器禁端口，恒快失败，不可用作佐证）。仅候选，不作实测。fetch 比 WS 更不易被挂起连接拖垮。 */
+    var ctrl=new AbortController(); var timer=setTimeout(function(){ ctrl.abort(); }, to);
+    fetch('http://'+ip+':'+port+'/', {mode:'no-cors', signal:ctrl.signal}).then(function(){ finish('http'); }).catch(function(e){ finish(e && e.name==='AbortError' ? 'abort' : 'refused'); });
+    function finish(kind){ if(done) return; done=true; clearTimeout(timer);
+      var ms=Math.round(performance.now()-t0);
+      var open = (kind==='abort' || kind==='http');
+      res({ip:ip, port:port, ms:ms, kind:kind, open:open});
+    }
+  });
+}
+async function collectLan(){
+  if(!state.ctl.lan){ setStage(2,'na','LAN 启发式已关闭',0); state.lan=[]; return []; }
+  /* https 页面 fetch http:// 属混合内容，被浏览器直接拦截（恒快失败），扫了也全是假"拒连"。如实关闭而非假报扫描。 */
+  if(location.protocol==='https:'){ setStage(2,'na','https 托管 · 浏览器禁混合内容，LAN 启发式关闭（USB/型号主路正常）；需 LAN 候选请本地 file:// 打开',0); trace('L2 https 混合内容策略：LAN 探针被浏览器拦截，跳过（非故障）', 'warn'); state.lan=[]; return []; }
+  var targets=netTargets(state.ctl.net);
+  if(!targets.length){ setStage(2,'warn','网段格式无效（支持 /24~/32 或单 IP）',0); trace('L2 网段无效: '+state.ctl.net, 'bad'); state.lan=[]; return []; }
+  /* 环回校准：浏览器网络栈冷启动/拥塞时探针会整体超时，先确认拒连可被快速感知，否则本轮候选不可信 */
+  var calib={open:true,ms:9999};
+  for(var ci=0; ci<3 && (calib.open||calib.ms>500); ci++){
+    if(ci>0) await new Promise(function(r){ setTimeout(r,500); });
+    calib=await probePort('127.0.0.1',9,800);
+  }
+  if(calib.open||calib.ms>500){ setStage(2,'warn','浏览器网络栈未就绪（环回校准异常），本轮 LAN 候选跳过',0); trace('L2 环回校准异常，跳过扫描', 'warn'); state.lan=[]; return []; }
+  setStage(2,'run','扫描 '+targets.length+' 主机 ×3 端口…',5);
+  trace('L2 开始启发式扫描 '+state.ctl.net+'（并发'+state.ctl.con+' 超时'+state.ctl.to+'ms）', 'info');
+  var ports=[9100,80], jobs=[], results=[], doneCount=0, total=targets.length*ports.length;
+  targets.forEach(function(ip){ ports.forEach(function(p){ jobs.push([ip,p]); }); });
+  var idx=0;
+  async function worker(){
+    while(idx<jobs.length){
+      var j=jobs[idx++]; var r=await probePort(j[0], j[1], state.ctl.to); results.push(r); doneCount++;
+      if(doneCount%24===0||doneCount===total) setStage(2,'run','扫描 '+doneCount+'/'+total+'…',Math.round(doneCount/total*100));
+    }
+  }
+  var ws=[]; for(var i=0;i<Math.min(state.ctl.con,jobs.length);i++) ws.push(worker());
+  await Promise.all(ws);
+  var byIp={}; results.forEach(function(r){ (byIp[r.ip]=byIp[r.ip]||{})[r.port]=r; });
+  /* 候选判定：9100 静默(raw 口特征) 且 80 快速拒连(证明主机活着)。死主机全端口静默→排除。 */
+  state.lan=Object.keys(byIp).filter(function(ip){
+    var p=byIp[ip];
+    var raw=p[9100]&&p[9100].open;
+    var corrob=p[80]&&!p[80].open&&p[80].ms<400&&p[80].kind==='refused';
+    return raw&&corrob;
+  }).map(function(ip){ return {ip:ip, ports:Object.keys(byIp[ip]).filter(function(pt){ return byIp[ip][pt].open; }).map(Number), attach:'lan', conf:0.25}; });
+  setStage(2, state.lan.length?'warn':'done', '开放候选 <b>'+state.lan.length+'</b> 主机（9100 静默+80 快拒佐证 · 启发式，未实测）· 探针 '+total,100);
+  trace('L2 候选 '+state.lan.length+' 主机: '+state.lan.map(function(c){ return c.ip+':'+c.ports.join(','); }).join(' ; '), state.lan.length?'warn':'ok');
+  return state.lan;
+}
+/* ---------- L3 匹配 ---------- */
+function matchAll(){
+  var cands=[];
+  state.usb.forEach(function(d){
+    var m=matchUsb(d);
+    cands.push({attach:'usb', name:d.productName||d.manufacturerName||('USB '+hex4(d.vendorId)+':'+hex4(d.productId)), vid:hex4(d.vendorId)+':'+hex4(d.productId), preset:m?m.preset:null, conf:m?m.conf:0.10, reasons:m?[m.reason]:['无指纹命中'], raw:d});
+  });
+  state.lan.forEach(function(c){
+    cands.push({attach:'lan', name:'网口候选 '+c.ip+':'+c.ports.join('/'), vid:null, preset:null, conf:0.25, reasons:['LAN 启发式开放端口，型号未知（需 probe_kit status/matrix 实测）'], raw:c});
+  });
+  state.spooler.forEach(function(p){
+    cands.push({attach:'spooler', name:p.name+(p.driver?'（驱动 '+p.driver+'）':''), vid:null, preset:p.preset||null, conf:p.conf||0.1, reasons:p.reasons||['Windows 补采'], raw:p});
+  });
+  cands.sort(function(a,b){ return b.conf-a.conf; });
+  state.printers=cands;
+  var best=cands[0]||null;
+  var thr=state.ctl.thr;
+  var confirmed = best && best.preset && best.conf>=thr;
+  if(state.ctl.mode==='strict' && best && !confirmed) best=null;
+  state.guess = best?best.preset:null;
+  state.conf = best?best.conf:0;
+  state.signals=[];
+  if(state.host) state.signals.push({src:'ua', value:(state.host.model||state.host.kind)+(state.host.sunmi?' (SUNMI 候选)':'')});
+  cands.forEach(function(c){ state.signals.push({src:c.attach, value:c.name+' → '+(c.preset||'未知')+' @'+c.conf.toFixed(2)}); });
+  setStage(3, confirmed?'done':(cands.length?'warn':'na'), confirmed?('裁决 <b>'+PRESET_META[best.preset].name+'</b> @'+best.conf.toFixed(2)): (cands.length?'最佳候选未过阈值 '+thr.toFixed(2)+' → 未确认':'无候选'),100);
+  trace('L3 裁决: '+(state.guess||'无')+' conf='+state.conf.toFixed(2)+(confirmed?'（过阈值）':'（未确认）'), confirmed?'ok':'warn');
+  renderIdentity();
+  return confirmed;
+}
+function renderIdentity(){
+  var v=$('verdict'), thr=state.ctl.thr;
+  var confirmed=state.guess && state.conf>=thr;
+  v.className = confirmed?'ok':(state.printers.length?'warn':'none');
+  $('verdictT').textContent = confirmed?('已匹配：'+PRESET_META[state.guess].name):(state.printers.length?'未确认：候选置信度不足':'未发现打印机');
+  $('verdictS').textContent = confirmed?('置信度 '+state.conf.toFixed(2)+' ≥ 阈值 '+thr.toFixed(2)+' · 可直接生成诊断深链'):(state.printers.length?'最佳 '+state.conf.toFixed(2)+' < 阈值 '+thr.toFixed(2)+' · 需实测补证（probe_kit / adb 采集）':'USB 授权或 LAN 扫描后重试');
+  var C=201; $('dialFg').style.strokeDashoffset = String(C*(1-state.conf));
+  $('dialTx').textContent=Math.round(state.conf*100)+'%';
+  var pl=$('plist'); pl.innerHTML='';
+  if(!state.printers.length){ pl.innerHTML='<div class="empty">尚未发现打印机候选<br>USB 需一次授权点击；网口扫描为启发式候选</div>'; return; }
+  state.printers.forEach(function(c){
+    var row=document.createElement('div'); row.className='prow '+c.attach;
+    var meta=c.preset?PRESET_META[c.preset]:null;
+    row.innerHTML='<div class="ph"><span class="nm"></span><span class="vid"></span>'+(meta?'<span class="preset" style="color:'+meta.color+';border-color:'+meta.color+'66;background:'+meta.color+'14">'+meta.name+'</span>':'<span class="preset" style="color:var(--tx3);border-color:var(--line2)">型号未知</span>')+'<span class="cf" style="color:'+(c.conf>=state.ctl.thr?'var(--green)':c.conf>=0.4?'var(--amber)':'var(--tx3)')+'">'+c.conf.toFixed(2)+'</span></div><div class="rs"></div>';
+    row.querySelector('.nm').textContent=c.name;
+    row.querySelector('.vid').textContent=c.vid||c.attach.toUpperCase();
+    row.querySelector('.rs').textContent=c.reasons.join(' · ');
+    pl.appendChild(row);
+  });
+}
+/* ---------- 记录 / 机队 ---------- */
+function buildRecord(label){
+  var r={v:1, id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), ts:new Date().toISOString(), label:label||'real',
+    host:state.host, printers:state.printers, lan:state.lan, preset_guess:state.guess, confidence:state.conf, signals:state.signals,
+    env:state.env?{proto:state.env.proto, secure:state.env.secure, usb:state.env.usb, uaData:state.env.uaData, webview:state.env.webview, level:state.env.level, lanHttps:!!state.env.lanHttps}:null,
+    source:'device_fingerprint', note:''};
+  r.deep_link = TRAINER_URI + '#preset='+(state.guess||'xp58')+'&mode=data';
+  return r;
+}
+function saveRecords(){ try{ localStorage.setItem('fp_records_v1', JSON.stringify(state.records)); localStorage.setItem('fp_views_v1', JSON.stringify(state.views)); localStorage.setItem('fp_manual_v1', JSON.stringify(state.manual)); }catch(e){ trace('持久化失败: '+e.message, 'bad'); } }
+function loadRecords(){
+  try{ state.records=JSON.parse(localStorage.getItem('fp_records_v1')||'[]'); state.views=JSON.parse(localStorage.getItem('fp_views_v1')||'[]'); state.manual=JSON.parse(localStorage.getItem('fp_manual_v1')||'[]'); }catch(e){ state.records=[]; state.views=[]; }
+  if(!state.records.length){
+    state.records=[
+      {v:1, id:'demo1', ts:'2026-11-16T09:12:00+08:00', label:'demo', host:{kind:'android-pos', model:'SUNMI T2', os:'Android 11', sunmi:true}, printers:[{attach:'usb', name:'Xprinter XP-330B', vid:'0x0483:0x5740', preset:'xp330b', conf:0.85, reasons:['产品名型号命中（演示数据）']}], lan:[], preset_guess:'xp330b', confidence:0.85, signals:[{src:'ua', value:'SUNMI T2'}], source:'device_fingerprint', note:'演示记录：非实测', deep_link:TRAINER_URI+'#preset=xp330b&mode=data'},
+      {v:1, id:'demo2', ts:'2026-11-16T10:03:00+08:00', label:'demo', host:{kind:'windows-pos', model:null, os:'Windows 10'}, printers:[{attach:'usb', name:'HPRT T80x', vid:null, preset:'hprt80', conf:0.6, reasons:['厂商名命中（演示数据）']}], lan:[], preset_guess:'hprt80', confidence:0.6, signals:[], source:'device_fingerprint', note:'演示记录：非实测', deep_link:TRAINER_URI+'#preset=hprt80&mode=data'},
+      {v:1, id:'demo3', ts:'2026-11-16T11:40:00+08:00', label:'demo', host:{kind:'android-pos', model:'SUNMI D2', os:'Android 9', sunmi:true}, printers:[{attach:'lan', name:'网口候选 192.168.1.87:9100', vid:null, preset:null, conf:0.25, reasons:['LAN 启发式（演示数据）']}], lan:[{ip:'192.168.1.87', ports:[9100]}], preset_guess:null, confidence:0.25, signals:[], source:'device_fingerprint', note:'演示记录：非实测', deep_link:TRAINER_URI+'#preset=xp58&mode=data'}
+    ];
+    saveRecords();
+  }
+}
+function filtered(){
+  var q=state.search.toLowerCase();
+  var rows=state.records.filter(function(r){
+    if(state.fSrc && r.label!==state.fSrc) return false;
+    if(state.fPreset && (r.preset_guess||'')!==state.fPreset) return false;
+    if(q){ var hay=((r.host&&r.host.model)||'')+' '+((r.printers||[]).map(function(p){ return p.name; }).join(' '))+' '+(r.preset_guess||'')+' '+(r.note||''); if(hay.toLowerCase().indexOf(q)<0) return false; }
+    return true;
+  });
+  var k=state.sort.key, dir=state.sort.dir;
+  if(k==='manual'){
+    state.records.forEach(function(r){ if(state.manual.indexOf(r.id)<0) state.manual.push(r.id); });
+    rows.sort(function(a,b){ return state.manual.indexOf(a.id)-state.manual.indexOf(b.id); });
+    return rows;
+  }
+  rows.sort(function(a,b){
+    var va, vb;
+    if(k==='model'){ va=(a.host&&a.host.model)||''; vb=(b.host&&b.host.model)||''; }
+    else if(k==='preset'){ va=a.preset_guess||''; vb=b.preset_guess||''; }
+    else if(k==='conf'){ va=a.confidence||0; vb=b.confidence||0; }
+    else { va=a.ts||''; vb=b.ts||''; }
+    return (va<vb?-1:va>vb?1:0)*dir;
+  });
+  return rows;
+}
+function renderFleet(){
+  var rows=filtered();
+  $('fCount').textContent=state.records.length+' 条 · 显示 '+rows.length;
+  var tb=$('fBody'); tb.innerHTML='';
+  rows.forEach(function(r){
+    var tr=document.createElement('tr'); tr.dataset.id=r.id; if(state.bulk[r.id]) tr.className='sel';
+    var meta=r.preset_guess?PRESET_META[r.preset_guess]:null;
+    tr.innerHTML='<td><input type="checkbox" '+(state.bulk[r.id]?'checked':'')+'></td><td class="cModel"></td><td class="cPreset"></td><td class="cConf" style="font-family:var(--mono)"></td><td class="cTs" style="color:var(--tx3);font-size:11px"></td>';
+    tr.draggable = (state.sort.key==='manual');
+    tr.addEventListener('dragstart', function(e){ e.dataTransfer.setData('text/plain', r.id); e.dataTransfer.effectAllowed='move'; });
+    tr.addEventListener('dragover', function(e){ if(state.sort.key!=='manual') return; e.preventDefault(); tr.classList.add('drop-hint'); });
+    tr.addEventListener('dragleave', function(){ tr.classList.remove('drop-hint'); });
+    tr.addEventListener('drop', function(e){ e.preventDefault(); tr.classList.remove('drop-hint'); var src=e.dataTransfer.getData('text/plain'); if(src) reorder(src, r.id); });
+    tr.querySelector('.cModel').textContent=(r.host&&r.host.model)|| (r.host&&r.host.kind==='windows-pos'?'Windows POS':'未知');
+    if(tr.draggable){ var hd=document.createElement('span'); hd.className='drag'; hd.textContent='⠿'; tr.querySelector('.cModel').prepend(hd); }
+    tr.querySelector('.cPreset').innerHTML = meta?'<span class="preset" style="color:'+meta.color+';border-color:'+meta.color+'66">'+meta.name+'</span>':'<span style="color:var(--tx3)">未确认</span>';
+    tr.querySelector('.cConf').textContent=(r.confidence||0).toFixed(2);
+    tr.querySelector('.cTs').textContent=(r.ts||'').slice(5,16).replace('T',' ');
+    tr.querySelector('input').onclick=function(e){ e.stopPropagation(); state.bulk[r.id]=!state.bulk[r.id]; if(!state.bulk[r.id]) delete state.bulk[r.id]; renderFleet(); };
+    tr.onclick=function(){ openDrawer(r.id); };
+    tb.appendChild(tr);
+  });
+  ['Manual','Model','Preset','Conf','Ts'].forEach(function(n){ $('ar'+n).textContent = state.sort.key===n.toLowerCase()?(state.sort.dir>0?'▲':'▼'):''; });
+  var n=Object.keys(state.bulk).length;
+  $('bulk').className='bulk'+(n?' on':''); $('bulkN').textContent=n+' 选中';
+  $('fAll').checked = rows.length>0 && rows.every(function(r){ return state.bulk[r.id]; });
+}
+function reorder(srcId, dstId){
+  if(srcId===dstId) return;
+  state.records.forEach(function(r){ if(state.manual.indexOf(r.id)<0) state.manual.push(r.id); });
+  var from=state.manual.indexOf(srcId), to=state.manual.indexOf(dstId);
+  if(from<0||to<0) return;
+  state.manual.splice(from,1); state.manual.splice(to,0,srcId);
+  state.sort={key:'manual',dir:1};
+  saveRecords(); renderFleet(); toast('顺序已调整（手动排序 · 跟进优先级）','ok');
+}
+function addRecord(rec){ state.records.unshift(rec); saveRecords(); renderFleet(); }
+function deleteRecords(ids){
+  var removed=state.records.filter(function(r){ return ids.indexOf(r.id)>=0; });
+  state.records=state.records.filter(function(r){ return ids.indexOf(r.id)<0; });
+  ids.forEach(function(id){ delete state.bulk[id]; });
+  saveRecords(); renderFleet(); closeDrawer();
+  toast('已删除 '+removed.length+' 条', 'bad', {label:'撤销', fn:function(){ state.records=removed.concat(state.records); saveRecords(); renderFleet(); toast('已撤销删除','ok'); }});
+}
+/* ---------- drawer ---------- */
+var drawerId=null;
+function openDrawer(id){
+  var r=state.records.find(function(x){ return x.id===id; }); if(!r) return;
+  drawerId=id;
+  $('dTitle').textContent=(r.host&&r.host.model)||'设备记录';
+  $('dSrc').className='src '+(r.label==='demo'?'demo':'real'); $('dSrc').textContent=r.label==='demo'?'演示':'实测';
+  var b=$('dBody'); b.innerHTML='';
+  var t=document.createElement('table'); t.className='kvt';
+  var rows=[['记录 ID', r.id],['时间', r.ts],['设备类型', (r.host&&r.host.kind)||'—'],['系统', (r.host&&r.host.os)||'—'],['商米候选', r.host&&r.host.sunmi?'是':'否'],['预设裁决', r.preset_guess||'未确认'],['置信度', (r.confidence||0).toFixed(2)],['来源', r.source]];
+  rows.forEach(function(kv){ var tr=document.createElement('tr'); tr.innerHTML='<td></td><td></td>'; tr.children[0].textContent=kv[0]; tr.children[1].textContent=kv[1]; t.appendChild(tr); });
+  b.appendChild(t);
+  var h=document.createElement('div'); h.className='sec'; h.style.marginTop='12px'; h.innerHTML='<b>打印机候选</b>'; b.appendChild(h);
+  (r.printers||[]).forEach(function(p){ var d=document.createElement('div'); d.className='prow '+p.attach; d.innerHTML='<div class="ph"><span class="nm"></span><span class="cf">'+(p.conf||0).toFixed(2)+'</span></div><div class="rs"></div>'; d.querySelector('.nm').textContent=p.name; d.querySelector('.rs').textContent=(p.reasons||[]).join(' · '); b.appendChild(d); });
+  var h2=document.createElement('div'); h2.className='sec'; h2.style.marginTop='12px'; h2.innerHTML='<b>signals</b>'; b.appendChild(h2);
+  var pre=document.createElement('div'); pre.id='trace'; pre.style.height='90px'; pre.textContent=(r.signals||[]).map(function(s){ return s.src+': '+s.value; }).join('\n')||'(无)'; b.appendChild(pre);
+  var h3=document.createElement('div'); h3.className='sec'; h3.style.marginTop='12px'; h3.innerHTML='<b>备注（可编辑）</b>'; b.appendChild(h3);
+  var ta=document.createElement('textarea'); ta.value=r.note||''; ta.oninput=function(){ r.note=ta.value; saveRecords(); renderFleet(); }; b.appendChild(ta);
+  $('drawer').classList.add('on'); $('scrim').classList.add('on');
+}
+function closeDrawer(){ drawerId=null; $('drawer').classList.remove('on'); $('scrim').classList.remove('on'); }
+/* ---------- export / link ---------- */
+function download(name, text, mime){
+  var blob=new Blob([text], {type:mime||'application/json'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+}
+function copyText(txt){
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ toast('已复制到剪贴板','ok'); }, function(){ fallbackCopy(txt); }); }
+  else fallbackCopy(txt);
+}
+function fallbackCopy(txt){ var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); toast('已复制到剪贴板','ok'); }catch(e){ toast('复制失败，请手动导出','warn'); } ta.remove(); }
+/* ---------- pipeline ---------- */
+async function runAll(requestUsb){
+  if(state.running) return; state.running=true;
+  trace('—— 开始采集 ——', 'info');
+  await collectHost();
+  await collectUsb(requestUsb);
+  if(state.ctl.bt){
+    try{ if(navigator.bluetooth){ var av=await navigator.bluetooth.getAvailability(); state.bt=av; $('capBt').className='cap '+(av?'on':'off'); $('capBt').textContent='蓝牙 '+(av?'✓':'✗'); trace('L1b 蓝牙可用='+av, 'info'); } else { $('capBt').className='cap off'; $('capBt').textContent='蓝牙 ✗'; } }
+    catch(e){ $('capBt').className='cap off'; $('capBt').textContent='蓝牙 ✗'; }
+  }
+  await collectLan();
+  matchAll();
+  state.last=buildRecord('real');
+  autoSaveLast();
+  state.running=false;
+}
+function autoSaveLast(){
+  if(!state.ctl.auto) return;
+  /* 去重键只取稳定身份（主机型号 + USB 打印机），LAN 启发式候选随扫描时序波动，不参与去重 */
+  var sig=function(r){ return JSON.stringify([r.host&&r.host.model, (r.printers||[]).filter(function(p){ return p.attach==='usb'; }).map(function(p){ return [p.name, p.preset, p.conf]; })]); };
+  var dup=state.records.find(function(r){ return r.label==='real' && sig(r)===sig(state.last); });
+  if(dup){ dup.ts=state.last.ts; dup.deep_link=state.last.deep_link; dup.preset_guess=state.last.preset_guess; dup.confidence=state.last.confidence; dup.printers=state.last.printers; dup.lan=state.last.lan; dup.signals=state.last.signals; state.last=dup; saveRecords(); renderFleet(); trace('自动入库：指纹与已有实测记录相同，更新时间而非重复入库', 'info'); }
+  else { addRecord(state.last); trace('已自动入库 '+state.last.id, 'ok'); }
+}
+/* Windows 补采合并：浏览器拿不到 WMI 型号/打印驱动队列，粘入 windows_collect.ps1 的只读输出补全 */
+function mergeCollect(txt){
+  var o;
+  try{ o=JSON.parse(txt); }catch(e){ toast('JSON 解析失败：'+e.message, 'bad'); return false; }
+  if(!o || o.v!==1 || o.source!=='windows_collect'){ toast('不是 windows_collect.ps1 的输出（source 字段不符）', 'bad'); return false; }
+  if(o.host){ state.host=Object.assign({}, state.host, o.host); }
+  state.spooler=(o.printers||[]).map(function(p){ return {attach:'spooler', name:p.name||p.driver||'物理队列', driver:p.driver, port:p.port, channel:p.channel, preset:p.preset||null, conf:(typeof p.conf==='number'?p.conf:0.1), reasons:p.reasons||['Windows 补采'], raw:p}; });
+  $('hostModel').textContent=state.host.model||'Windows 收银机';
+  $('hostOs').textContent=state.host.os||'—';
+  $('hostKind').textContent='Windows POS · 补采已合并';
+  $('hostExtra').textContent='WMI: '+(state.host.manufacturer||'')+' '+(state.host.model||'')+' · 物理队列 '+state.spooler.length+'（虚拟/云打印已排除）';
+  setStage(0,'done','<b>'+(state.host.model||'Windows 收银机')+'</b> · '+(state.host.os||'—')+' · 来自 windows_collect 补采',100);
+  matchAll();
+  state.last=buildRecord('real');
+  autoSaveLast();
+  toast('补采已合并：'+(state.host.model||'Windows')+' / '+(state.guess?PRESET_META[state.guess].name:'打印机未确认'), 'ok');
+  trace('L0+ 合并 windows_collect：host='+(state.host.model||'?')+' spooler='+state.spooler.length, 'ok');
+  return true;
+}
+/* ---------- AI 回传桥：结果出去（内嵌给 AI 的指令）/ 修订回来（纯数据，不含代码） ---------- */
+function trainerPlan(pathname){ return {open: String(pathname).indexOf('/printer_probe/')>=0}; }
+var HANDOFF_AI = [
+'【给 AI 的指令 · 嵌套于回传包】',
+'你收到的是「门店设备指纹自检台」device_fingerprint.html 的回传包。请按序执行：',
+'1 解析【结果 JSON】：records 为机队记录（schema v1：host/printers/preset_guess/confidence/signals/env/deep_link）；env 说明采集载体能力（secure/usb/uaData/webview），降级载体的数据不得当作全能力实测。',
+'2 裁决核对：confidence≥0.6 才视为已确认；LAN 启发式 0.25 与标签词 0.3 均为未实测候选；VID/PID 0.9 须带 evidence。',
+'3 结合项目 D:\\craft-anything\\POS问题解析\\printer_probe\\ 的 probe_kit.py（BRAND_RULES/VID_PID/diagnose/stuck_map）与 printer_3d/printer_teardown_3d.html 深链分析卡点；需真机验证时给出 matrix --interactive 待测清单，不得虚构实测。',
+'4 如需修订：产出修订包 JSON {"v":1,"source":"ai_revision","vid_pid":{"0xvvvv:0xpppp":{"preset":"xp330b","conf":0.9,"evidence":"真机实测…"}},"overrides":[{"id":"记录id","preset":"xp58","conf":0.85,"reason":"…"}]}，交客服/门店粘回自检台「应用 AI 修订包」生效；同时同步修改 probe_kit.py 与 device_fingerprint.html 的对应表，并重跑 _device.mjs/_diag.mjs/_verify.mjs/_matrix.mjs 回归。',
+'5 门店侧系统一律只读：不改配置、不装驱动、不打印（打印须 --yes/--interactive 显式授权）。'
+].join('\n');
+function buildHandoff(){
+  var payload={v:1, kind:'fp_handoff', ts:new Date().toISOString(), env:state.env, current:state.last, records:state.records};
+  return '===== POS 设备指纹回传包 v1 =====\n'+HANDOFF_AI+'\n【结果 JSON】\n'+JSON.stringify(payload,null,1)+'\n===== 回传包结束 =====';
+}
+function applyRevision(txt){
+  var o;
+  try{ o=JSON.parse(txt); }catch(e){ toast('修订包 JSON 解析失败：'+e.message, 'bad'); return false; }
+  if(!o || o.v!==1 || o.source!=='ai_revision'){ toast('不是 AI 修订包（source 字段不符）', 'bad'); return false; }
+  var nV=0, nO=0;
+  if(o.vid_pid){ Object.keys(o.vid_pid).forEach(function(k){
+    var e=o.vid_pid[k];
+    if(!/^0x[0-9a-f]{4}:0x[0-9a-f]{4}$/i.test(k) || !e || !PRESET_META[e.preset]){ trace('修订跳过非法 VID/PID 条目 '+k, 'warn'); return; }
+    VID_PID[k.toLowerCase()]={preset:e.preset, conf:(typeof e.conf==='number' && e.evidence)?Math.min(e.conf,0.9):0.6, evidence:e.evidence||''};
+    nV++;
+  }); }
+  if(o.overrides){ o.overrides.forEach(function(ov){
+    var r=state.records.find(function(x){ return x.id===ov.id; });
+    if(!r || !PRESET_META[ov.preset]){ trace('修订跳过无效覆盖 '+(ov&&ov.id), 'warn'); return; }
+    r.preset_guess=ov.preset; r.confidence=Math.min(typeof ov.conf==='number'?ov.conf:0.6, 0.9);
+    r.signals=(r.signals||[]).concat([{src:'ai_revision', value:ov.reason||'AI 修订'}]);
+    r.note=(r.note?r.note+' · ':'')+'AI 修订: '+(ov.reason||'');
+    nO++;
+  }); }
+  try{ localStorage.setItem('fp_vidpid_v1', JSON.stringify(VID_PID)); }catch(e){ trace('VID/PID 持久化失败: '+e.message, 'bad'); }
+  saveRecords(); renderFleet(); matchAll();
+  $('vidCount').textContent=Object.keys(VID_PID).length+' 条';
+  $('revStatus').textContent='已应用修订：VID/PID +'+nV+' · 记录覆盖 '+nO+' · '+new Date().toTimeString().slice(0,8);
+  toast('修订已应用：VID/PID +'+nV+' · 记录覆盖 '+nO, 'ok');
+  trace('AI 修订包应用：vid_pid+'+nV+' overrides+'+nO, 'ok');
+  return true;
+}
+/* ---------- controls ---------- */
+function bindControls(){
+  var sync=function(){ $('vThr').textContent=(+state.ctl.thr).toFixed(2); $('vCon').textContent=state.ctl.con; $('vTo').textContent=state.ctl.to; };
+  $('cThr').oninput=function(){ state.ctl.thr=+this.value; sync(); matchAll(); };
+  $('cCon').oninput=function(){ state.ctl.con=+this.value; sync(); };
+  $('cTo').oninput=function(){ state.ctl.to=Math.max(200,Math.min(3000,+this.value||1200)); sync(); };
+  $('cMode').onchange=function(){ state.ctl.mode=this.value; matchAll(); };
+  $('cNet').oninput=function(){ state.ctl.net=this.value; };
+  $('cNetPre').onchange=function(){ if(this.value){ $('cNet').value=this.value; state.ctl.net=this.value; } };
+  $('cLan').onchange=function(){ state.ctl.lan=this.checked; };
+  $('cBt').onchange=function(){ state.ctl.bt=this.checked; };
+  $('cAuto').onchange=function(){ state.ctl.auto=this.checked; };
+  $('cOpen').onchange=function(){ state.ctl.open=this.checked; };
+  $('bRun').onclick=function(){ runAll(false); };
+  $('bUsb').onclick=function(){ runAll(true); };
+  $('bLan').onclick=async function(){ await collectLan(); matchAll(); };
+  $('bExport').onclick=function(){ download('device_fingerprint_'+Date.now()+'.json', JSON.stringify(state.last||buildRecord('real'), null, 1)); toast('已导出本条 JSON','ok'); };
+  $('bLink').onclick=function(){ copyText((state.last||buildRecord('real')).deep_link); };
+  $('bReset').onclick=function(){
+    state.ctl={thr:0.6, con:32, to:1200, mode:'auto', net:'192.168.1.0/24', lan:true, bt:true, auto:true, open:false};
+    $('cThr').value=0.6; $('cCon').value=32; $('cTo').value=1200; $('cMode').value='auto'; $('cNet').value='192.168.1.0/24'; $('cNetPre').value='';
+    $('cLan').checked=true; $('cBt').checked=true; $('cAuto').checked=true; $('cOpen').checked=false;
+    sync(); matchAll(); toast('控制已重置','ok');
+  };
+  $('bCopyPs').onclick=function(){ copyText('powershell -NoProfile -ExecutionPolicy Bypass -File windows_collect.ps1'); };
+  $('bMerge').onclick=function(){ var t=$('mergeBox').value.trim(); if(!t){ toast('请先粘贴 windows_collect.ps1 的输出','warn'); return; } if(mergeCollect(t)) $('mergeBox').value=''; };
+  $('bHandoff').onclick=function(){ var h=buildHandoff(); $('handoffBox').value=h; copyText(h); trace('回传包已生成：'+state.records.length+' 条记录 + 嵌套 AI 指令', 'ok'); };
+  $('bHandoffDl').onclick=function(){ download('fp_handoff_'+Date.now()+'.txt', buildHandoff(), 'text/plain'); toast('回传包已下载','ok'); };
+  $('bRevApply').onclick=function(){ var t=$('revBox').value.trim(); if(!t){ toast('请先粘贴 AI 修订包','warn'); return; } if(applyRevision(t)) $('revBox').value=''; };
+  $('bSave').onclick=function(){ var r=buildRecord('real'); addRecord(r); state.last=r; toast('已入库 '+r.id,'ok'); };
+  $('bTrainer').onclick=function(){
+    var g=state.guess||'xp58'; var uri=TRAINER_URI+'#preset='+g+'&mode=teardown';
+    if(trainerPlan(location.pathname).open){ window.open(uri,'_blank'); }
+    else { copyText(uri); toast('深链已复制：3D 解剖台在客服侧，请在客服机打开','ok'); }
+  };
+  sync();
+}
+function bindFleet(){
+  $('fSearch').oninput=function(){ state.search=this.value; renderFleet(); };
+  $('fSrc').onchange=function(){ state.fSrc=this.value; renderFleet(); };
+  $('fPreset').onchange=function(){ state.fPreset=this.value; renderFleet(); };
+  document.querySelectorAll('th[data-sort]').forEach(function(th){
+    th.onclick=function(){ var k=th.dataset.sort; if(state.sort.key===k) state.sort.dir*=-1; else { state.sort.key=k; state.sort.dir=(k==='ts'||k==='conf')?-1:1; if(k==='manual') state.sort.dir=1; } renderFleet(); };
+  });
+  $('fAll').onchange=function(){ var rows=filtered(); var on=this.checked; rows.forEach(function(r){ if(on) state.bulk[r.id]=true; else delete state.bulk[r.id]; }); renderFleet(); };
+  $('bBulkClear').onclick=function(){ state.bulk={}; renderFleet(); };
+  $('bBulkDel').onclick=function(){ deleteRecords(Object.keys(state.bulk)); };
+  $('bBulkExport').onclick=function(){ var sel=state.records.filter(function(r){ return state.bulk[r.id]; }); download('fleet_selected.jsonl', sel.map(function(r){ return JSON.stringify(r); }).join('\n'), 'application/x-ndjson'); toast('已导出 '+sel.length+' 条','ok'); };
+  $('bViewSave').onclick=function(){
+    var name=prompt('视图名称：'); if(!name) return;
+    state.views=state.views.filter(function(v){ return v.name!==name; });
+    state.views.push({name:name, search:state.search, fSrc:state.fSrc, fPreset:state.fPreset, sort:state.sort});
+    saveRecords(); renderViews(); toast('视图已保存: '+name,'ok');
+  };
+  $('fView').onchange=function(){
+    var v=state.views.find(function(x){ return x.name===this.value; }.bind(this)); if(!v) return;
+    state.search=v.search; state.fSrc=v.fSrc; state.fPreset=v.fPreset; state.sort=v.sort;
+    $('fSearch').value=v.search; $('fSrc').value=v.fSrc; $('fPreset').value=v.fPreset; renderFleet(); toast('已应用视图 '+v.name,'ok');
+  };
+  $('dClose').onclick=closeDrawer; $('scrim').onclick=closeDrawer;
+  $('dDel').onclick=function(){ if(drawerId) deleteRecords([drawerId]); };
+  $('dExport').onclick=function(){ var r=state.records.find(function(x){ return x.id===drawerId; }); if(r) download(r.id+'.json', JSON.stringify(r, null, 1)); };
+  $('dLink').onclick=function(){ var r=state.records.find(function(x){ return x.id===drawerId; }); if(r) copyText(r.deep_link); };
+  Object.keys(PRESET_META).forEach(function(k){ var o=document.createElement('option'); o.value=k; o.textContent=PRESET_META[k].name; $('fPreset').appendChild(o); });
+}
+function renderViews(){
+  var sel=$('fView'); var cur=sel.value; sel.innerHTML='<option value="">保存的视图…</option>';
+  state.views.forEach(function(v){ var o=document.createElement('option'); o.value=v.name; o.textContent=v.name; sel.appendChild(o); });
+  sel.value=cur;
+}
+/* ---------- init ---------- */
+function tick(){ $('clock').textContent=new Date().toTimeString().slice(0,8); }
+setInterval(tick, 1000); tick();
+loadRecords(); bindControls(); bindFleet(); renderViews(); renderFleet();
+try{ var vp=JSON.parse(localStorage.getItem('fp_vidpid_v1')||'{}'); Object.keys(vp).forEach(function(k){ VID_PID[k]=vp[k]; }); }catch(e){}
+detectEnv(); renderEnv();
+if(!trainerPlan(location.pathname).open) $('bTrainer').textContent='复制 3D 解剖深链（客服侧打开）';
+$('envAct').onclick=function(){ var card=$('bCopyPs').closest('.card'); card.scrollIntoView({behavior:'smooth', block:'center'}); card.style.boxShadow='0 0 0 2px var(--amber)'; setTimeout(function(){ card.style.boxShadow=''; }, 1200); };
+$('vidCount').textContent=Object.keys(VID_PID).length+' 条';
+trace('自检台就绪 · 载体能力探测中…', 'info');
+runAll(false).then(function(){ window.__ready=true; });
+/* test hooks */
+window.__fp={
+  state:state,
+  injectUsb:function(devs){ state.usb=devs.map(function(d){ return Object.assign({attach:'usb', printerClass:false, productName:'', manufacturerName:'', serial:''}, d); }); setStage(1,'done','注入 '+state.usb.length+' 台（测试钩子）',100); matchAll(); },
+  run:runAll, match:matchAll, collectLan:collectLan, netTargets:netTargets,
+  addRecord:addRecord, deleteRecords:deleteRecords, buildRecord:buildRecord,
+  setControl:function(k,v){ state.ctl[k]=v; var el={thr:'cThr',con:'cCon',to:'cTo',mode:'cMode',net:'cNet',lan:'cLan',bt:'cBt',auto:'cAuto',open:'cOpen'}[k]; if(el){ var e=$(el); if(e.type==='checkbox') e.checked=v; else e.value=v; } matchAll(); },
+  records:function(){ return state.records; }, reorder:reorder, mergeCollect:mergeCollect,
+  env:function(){ return state.env; }, handoff:buildHandoff, applyRevision:applyRevision, trainerPlan:trainerPlan
+};
+</script>
+</body>
+</html>
