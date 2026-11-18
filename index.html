@@ -300,7 +300,7 @@ footer .sp{margin-left:auto;}
 <script>
 "use strict";
 /* 门店设备指纹自检台 —— 零依赖单文件。装机打开即自动抓取 POS 型号与打印机型号。
-   载体：Windows/Android 浏览器(WebUSB)； locked-down 商米走 sunmi_collect.sh(adb) 同构输出。 */
+   载体：Windows/Android 浏览器(WebUSB)； locked-down 安卓走 android_collect.sh(adb) 同构输出。 */
 var TRAINER_URI = 'file:///D:/craft-anything/POS%E9%97%AE%E9%A2%98%E8%A7%A3%E6%9E%90/printer_probe/printer_3d/printer_teardown_3d.html';
 /* 自动回传落点：飞书群「自定义机器人」webhook（实测 open.feishu.cn 返回 Access-Control-Allow-Origin:*，浏览器可跨域 POST 且响应可读）。
    为空=未配置，自动回传不可用。客服在专用群添加自定义机器人（安全设置=自定义关键词 fp_handoff），把 webhook 填到这里或下方配置框。
@@ -386,13 +386,13 @@ function detectEnv(){
   else if(e.windows){ e.level='warn'; e.title='Windows 载体 · 浏览器能力边界';
     e.msg='浏览器读不到硬件型号（WMI），也看不到装了正常打印驱动的 USB 打印机。在本机跑 windows_collect.ps1，输出粘到下方「Windows 补采」合并；或直接用 probe_kit diagnose。'; e.act='ps'; }
   else if(e.android&&e.webview){ e.level='warn'; e.title='应用内预览 / WebView 内核';
-    e.msg='USB 枚举与高熵指纹可能不可用：试右上角 ⋯「在浏览器 / Chrome 打开」；若打印机被收银 App 独占，由客服侧远程协助跑 sunmi_collect.sh（adb 只读，不受独占影响）。'; }
+    e.msg='USB 枚举与高熵指纹可能不可用：试右上角 ⋯「在浏览器 / Chrome 打开」；若打印机被收银 App 独占，由客服侧 adb 跑 android_collect.sh（只读，不受独占影响，任何安卓通用）。'; }
   else if(!e.usb){ e.level='warn'; e.title='无 WebUSB · 旧内核/容器';
-    e.msg='此浏览器/容器没有 WebUSB（WebView 常见），无法枚举 USB 打印机。型号仍可由 UA 解析；打印机走补采脚本：Windows 用 windows_collect.ps1，商米用 sunmi_collect.sh（adb 只读，不受收银 App 独占影响）。'; }
+    e.msg='此浏览器/容器没有 WebUSB（WebView 常见），无法枚举 USB 打印机。型号仍可由 UA 解析；打印机走补采脚本：Windows 用 windows_collect.ps1，安卓用 android_collect.sh（adb 只读，不受收银 App 独占影响）。'; }
   else if(!e.uaData){ e.level='warn'; e.title='WebUSB 可用 · 高熵指纹缺失';
-    e.msg='WebUSB 在：点「授权并枚举 USB」可枚举打印机。但读不到主机型号（无 userAgentData 高熵值，UA 可能被容器改写为 iPad/iOS）→ 主机型号走 sunmi_collect.sh / windows_collect.ps1 补采。若点授权后没有选择框弹出，多为 WebView 选择器不可用或打印机被收银服务独占 → 同样走 adb 补采（失败原因会记入回传包）。'; }
+    e.msg='WebUSB 在：点「授权并枚举 USB」可枚举打印机。但读不到主机型号（无 userAgentData 高熵值，UA 可能被容器改写为 iPad/iOS）→ 主机型号走 android_collect.sh / windows_collect.ps1 补采。若点授权后没有选择框弹出，多为 WebView 选择器不可用或打印机被收银服务独占 → 同样走 adb 补采（失败原因会记入回传包）。'; }
   else { e.level='ok'; e.title='Android + 完整浏览器内核';
-    e.msg='环境齐备：主机型号自动读取，USB 一次授权即枚举打印机。若枚举 0 台多为收银 App 独占 → 改走 sunmi_collect.sh。'; }
+    e.msg='环境齐备：主机型号自动读取，USB 一次授权即枚举打印机。若枚举 0 台多为收银 App 独占 → 改走 android_collect.sh。'; }
   if(e.secure && e.proto==='https:'){ e.lanHttps=true; e.msg+='（https 托管：浏览器禁混合内容，LAN 启发式自动关闭；USB/型号主路不受影响。）'; }
   state.env=e; return e;
 }
@@ -452,7 +452,7 @@ async function collectUsb(request){
   var printers=recs.filter(function(r){ return r.printerClass || matchText(r.productName) || matchText(r.manufacturerName); });
   var hint;
   if(recs.length) hint='';
-  else if(attempt.error) hint='（授权/枚举报错：'+attempt.error+' → 走 sunmi_collect.sh / windows_collect.ps1 补采）';
+  else if(attempt.error) hint='（授权/枚举报错：'+attempt.error+' → 走 android_collect.sh / windows_collect.ps1 补采）';
   else if(attempt.requested && !attempt.granted) hint='（点了授权但选择器未返回设备：WebView 选择器不可用或被收银服务独占 → 走 adb 补采）';
   else hint='（无已授权设备；点「授权并枚举 USB」）';
   setStage(1, recs.length?'done':'na', 'USB 设备 <b>'+recs.length+'</b> 台 · 打印机候选 <b>'+printers.length+'</b> 台'+hint,100);
