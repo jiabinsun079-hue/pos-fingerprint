@@ -327,7 +327,7 @@ var BRAND_RULES = [
 var VID_PID = {}; /* '0xvid:0xpid': {preset,conf,evidence}。仅 AI 修订包带真机证据回灌，未实测不写。 */
 var SUNMI_MODELS = ['T2','T2s','T2 Lite','D2','D2s','D3','V2 Pro','V2','K2','M2','M2 Max','T1','T1 Host'];
 var state = {
-  host:null, usb:[], lan:[], spooler:[], bt:null, printers:[], guess:null, conf:0, signals:[],
+  host:null, usb:[], lan:[], spooler:[], bt:null, printers:[], guess:null, conf:0, signals:[], usbAttempt:null,
   ctl:{thr:0.6, con:32, to:1200, mode:'auto', net:'192.168.1.0/24', lan:true, bt:true, auto:true, open:false, report:false},
   records:[], views:[], manual:[], search:'', fSrc:'', fPreset:'', sort:{key:'ts', dir:-1}, bulk:{},
   running:false, last:null
@@ -387,8 +387,10 @@ function detectEnv(){
     e.msg='浏览器读不到硬件型号（WMI），也看不到装了正常打印驱动的 USB 打印机。在本机跑 windows_collect.ps1，输出粘到下方「Windows 补采」合并；或直接用 probe_kit diagnose。'; e.act='ps'; }
   else if(e.android&&e.webview){ e.level='warn'; e.title='应用内预览 / WebView 内核';
     e.msg='USB 枚举与高熵指纹可能不可用：试右上角 ⋯「在浏览器 / Chrome 打开」；若打印机被收银 App 独占，由客服侧远程协助跑 sunmi_collect.sh（adb 只读，不受独占影响）。'; }
-  else if(!e.usb||!e.uaData){ e.level='warn'; e.title='浏览器内核能力不全';
-    e.msg='WebUSB 或高熵指纹不可用（旧内核/被禁用）。型号仍可由 UA 解析；打印机走补采脚本：Windows 用 windows_collect.ps1，商米用 sunmi_collect.sh。'; }
+  else if(!e.usb){ e.level='warn'; e.title='无 WebUSB · 旧内核/容器';
+    e.msg='此浏览器/容器没有 WebUSB（WebView 常见），无法枚举 USB 打印机。型号仍可由 UA 解析；打印机走补采脚本：Windows 用 windows_collect.ps1，商米用 sunmi_collect.sh（adb 只读，不受收银 App 独占影响）。'; }
+  else if(!e.uaData){ e.level='warn'; e.title='WebUSB 可用 · 高熵指纹缺失';
+    e.msg='WebUSB 在：点「授权并枚举 USB」可枚举打印机。但读不到主机型号（无 userAgentData 高熵值，UA 可能被容器改写为 iPad/iOS）→ 主机型号走 sunmi_collect.sh / windows_collect.ps1 补采。若点授权后没有选择框弹出，多为 WebView 选择器不可用或打印机被收银服务独占 → 同样走 adb 补采（失败原因会记入回传包）。'; }
   else { e.level='ok'; e.title='Android + 完整浏览器内核';
     e.msg='环境齐备：主机型号自动读取，USB 一次授权即枚举打印机。若枚举 0 台多为收银 App 独占 → 改走 sunmi_collect.sh。'; }
   if(e.secure && e.proto==='https:'){ e.lanHttps=true; e.msg+='（https 托管：浏览器禁混合内容，LAN 启发式自动关闭；USB/型号主路不受影响。）'; }
@@ -431,21 +433,30 @@ async function readUsbDevices(list){
   return out;
 }
 async function collectUsb(request){
-  if(!navigator.usb){ setStage(1,'na','此浏览器/容器无 WebUSB（WebView 常见）→ 走 adb 采集脚本或 LAN 候选',0); $('capUsb').className='cap off'; $('capUsb').textContent='WebUSB ✗'; trace('L1 WebUSB 不可用', 'warn'); return []; }
+  if(!navigator.usb){ state.usbAttempt={api:false, requested:!!request, known:0, granted:0, error:null}; setStage(1,'na','此浏览器/容器无 WebUSB（WebView 常见）→ 走 adb 采集脚本或 LAN 候选',0); $('capUsb').className='cap off'; $('capUsb').textContent='WebUSB ✗'; trace('L1 WebUSB 不可用', 'warn'); return []; }
   $('capUsb').className='cap on'; $('capUsb').textContent='WebUSB ✓';
   setStage(1,'run','枚举中…',40);
   var devs=[];
+  var attempt={api:true, requested:!!request, known:0, granted:0, error:null};
   try{
     devs=await navigator.usb.getDevices();
-    if(request || devs.length===0){
-      if(request){ var nd=await navigator.usb.requestDevice({filters:[]}); if(nd) devs=devs.concat([nd]); }
+    attempt.known=devs.length;
+    if(request){
+      var nd=await navigator.usb.requestDevice({filters:[]});
+      if(nd){ devs=devs.concat([nd]); attempt.granted=1; }
     }
-  }catch(e){ trace('L1 枚举/授权: '+e.message, 'warn'); }
+  }catch(e){ attempt.error=(e&&e.name?e.name+': ':'')+(e&&e.message?e.message:String(e)); trace('L1 枚举/授权: '+attempt.error, 'warn'); }
+  state.usbAttempt=attempt;
   var recs=await readUsbDevices(devs);
   state.usb=recs;
   var printers=recs.filter(function(r){ return r.printerClass || matchText(r.productName) || matchText(r.manufacturerName); });
-  setStage(1, recs.length?'done':'na', 'USB 设备 <b>'+recs.length+'</b> 台 · 打印机候选 <b>'+printers.length+'</b> 台'+(recs.length?'':'（无已授权设备；点「授权并枚举 USB」）'),100);
-  trace('L1 USB 枚举 '+recs.length+' 台，打印机候选 '+printers.length, recs.length?'ok':'warn');
+  var hint;
+  if(recs.length) hint='';
+  else if(attempt.error) hint='（授权/枚举报错：'+attempt.error+' → 走 sunmi_collect.sh / windows_collect.ps1 补采）';
+  else if(attempt.requested && !attempt.granted) hint='（点了授权但选择器未返回设备：WebView 选择器不可用或被收银服务独占 → 走 adb 补采）';
+  else hint='（无已授权设备；点「授权并枚举 USB」）';
+  setStage(1, recs.length?'done':'na', 'USB 设备 <b>'+recs.length+'</b> 台 · 打印机候选 <b>'+printers.length+'</b> 台'+hint,100);
+  trace('L1 USB 枚举 '+recs.length+' 台，打印机候选 '+printers.length+' · 授权尝试 '+JSON.stringify(attempt), recs.length?'ok':'warn');
   recs.forEach(function(r){ trace('   usb '+hex4(r.vendorId)+':'+hex4(r.productId)+' '+(r.productName||'(无产品名)')+(r.printerClass?' [class7]':''), 'info'); });
   return recs;
 }
@@ -535,6 +546,14 @@ function matchAll(){
   state.conf = best?best.conf:0;
   state.signals=[];
   if(state.host) state.signals.push({src:'ua', value:(state.host.model||state.host.kind)+(state.host.sunmi?' (SUNMI 候选)':'')});
+  if(state.usbAttempt){ var a=state.usbAttempt;
+    var av = a.api===false ? '无 WebUSB API（容器/旧内核）'
+      : a.error ? ('授权/枚举报错 '+a.error)
+      : a.granted ? ('授权成功 +'+a.granted+' 台')
+      : a.requested ? ('点了授权但选择器无设备返回（已知 '+a.known+' 台）→ WebView 选择器不可用或被独占')
+      : ('未点授权 · 已授权设备 '+a.known+' 台');
+    state.signals.push({src:'usb_auth', value:av});
+  }
   cands.forEach(function(c){ state.signals.push({src:c.attach, value:c.name+' → '+(c.preset||'未知')+' @'+c.conf.toFixed(2)}); });
   setStage(3, confirmed?'done':(cands.length?'warn':'na'), confirmed?('裁决 <b>'+PRESET_META[best.preset].name+'</b> @'+best.conf.toFixed(2)): (cands.length?'最佳候选未过阈值 '+thr.toFixed(2)+' → 未确认':'无候选'),100);
   trace('L3 裁决: '+(state.guess||'无')+' conf='+state.conf.toFixed(2)+(confirmed?'（过阈值）':'（未确认）'), confirmed?'ok':'warn');
@@ -564,7 +583,7 @@ function renderIdentity(){
 /* ---------- 记录 / 机队 ---------- */
 function buildRecord(label){
   var r={v:1, id:'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), ts:new Date().toISOString(), label:label||'real',
-    host:state.host, printers:state.printers, lan:state.lan, preset_guess:state.guess, confidence:state.conf, signals:state.signals,
+    host:state.host, printers:state.printers, lan:state.lan, preset_guess:state.guess, confidence:state.conf, signals:state.signals, usb_auth:state.usbAttempt,
     env:state.env?{proto:state.env.proto, secure:state.env.secure, usb:state.env.usb, uaData:state.env.uaData, webview:state.env.webview, level:state.env.level, lanHttps:!!state.env.lanHttps}:null,
     source:'device_fingerprint', note:''};
   r.deep_link = TRAINER_URI + '#preset='+(state.guess||'xp58')+'&mode=data';
@@ -732,7 +751,7 @@ function trainerPlan(pathname){ return {open: String(pathname).indexOf('/printer
 var HANDOFF_AI = [
 '【给 AI 的指令 · 嵌套于回传包】',
 '你收到的是「门店设备指纹自检台」device_fingerprint.html 的回传包。请按序执行：',
-'1 解析【结果 JSON】：records 为机队记录（schema v1：host/printers/preset_guess/confidence/signals/env/deep_link）；env 说明采集载体能力（secure/usb/uaData/webview），降级载体的数据不得当作全能力实测。',
+'1 解析【结果 JSON】：records 为机队记录（schema v1：host/printers/preset_guess/confidence/signals/usb_auth/env/deep_link）；env 说明采集载体能力（secure/usb/uaData/webview），降级载体的数据不得当作全能力实测；usb_auth 记录 USB 授权尝试（api/requested/known/granted/error），error 非空或 requested 且 granted=0 即 WebUSB 选择器在该载体不可用或被独占，须走 adb 补采，不得当作"无打印机"。',
 '2 裁决核对：confidence≥0.6 才视为已确认；LAN 启发式 0.25 与标签词 0.3 均为未实测候选；VID/PID 0.9 须带 evidence。',
 '3 结合项目 D:\\craft-anything\\POS问题解析\\printer_probe\\ 的 probe_kit.py（BRAND_RULES/VID_PID/diagnose/stuck_map）与 printer_3d/printer_teardown_3d.html 深链分析卡点；需真机验证时给出 matrix --interactive 待测清单，不得虚构实测。',
 '4 如需修订：产出修订包 JSON {"v":1,"source":"ai_revision","vid_pid":{"0xvvvv:0xpppp":{"preset":"xp330b","conf":0.9,"evidence":"真机实测…"}},"overrides":[{"id":"记录id","preset":"xp58","conf":0.85,"reason":"…"}]}，交客服/门店粘回自检台「应用 AI 修订包」生效；同时同步修改 probe_kit.py 与 device_fingerprint.html 的对应表，并重跑 _device.mjs/_diag.mjs/_verify.mjs/_matrix.mjs 回归。',
