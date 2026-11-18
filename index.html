@@ -90,6 +90,8 @@ button:active{transform:translateY(0);}
 button.pri{background:linear-gradient(120deg, rgba(34,211,238,.22), rgba(61,220,132,.22)); border-color:rgba(34,211,238,.55); color:#dffcff; font-weight:600;}
 button.danger{border-color:rgba(255,77,107,.5); color:#ffd7dd;}
 button.mini{padding:3px 9px; font-size:11.5px;}
+a.apkdl{display:inline-block; font:inherit; cursor:pointer; border-radius:7px; border:1px solid rgba(34,211,238,.55); background:linear-gradient(120deg, rgba(34,211,238,.22), rgba(61,220,132,.22)); color:#dffcff; font-weight:600; padding:6px 12px; font-size:12.5px; text-decoration:none; transition:transform .12s, border-color .12s;}
+a.apkdl:hover{border-color:var(--cyan); transform:translateY(-1px);}
 #verdict{border-radius:10px; padding:12px 14px; border:1px solid var(--line2); background:var(--panel2); display:flex; align-items:center; gap:12px;}
 #verdict.ok{border-color:rgba(61,220,132,.55); background:linear-gradient(120deg, rgba(61,220,132,.12), rgba(34,211,238,.06));}
 #verdict.warn{border-color:rgba(255,176,32,.55); background:linear-gradient(120deg, rgba(255,176,32,.12), rgba(244,114,182,.05));}
@@ -228,6 +230,18 @@ footer .sp{margin-left:auto;}
       </div>
       <div class="btns" style="margin-top:0"><button id="bCopyPs">复制采集命令</button><button class="pri" id="bMerge">合并补采 JSON</button></div>
       <textarea id="mergeBox" style="width:100%;margin-top:9px;background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:7px 9px;font:11.5px/1.6 var(--mono);min-height:74px;resize:vertical" placeholder='粘贴 windows_collect.ps1 输出的 JSON（{"v":1,"source":"windows_collect",…}）' spellcheck="false"></textarea>
+    </div>
+    <div class="card">
+      <div class="sec"><b>安卓助手 APK</b> 锁死机终态 · 原生枚举免授权</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.8;margin-bottom:8px">
+        商米等锁死安卓机：浏览器/WebView 点「授权并枚举 USB」<b>没有选择框弹出</b>（选择器不可用或打印机被收银 App 独占），网页拿不到打印机。<br>
+        装机时随 POS 一起装这个独立助手：原生 <code>UsbManager</code> 枚举 VID/PID/产品名——<b>免授权弹窗、独占也能读</b>；主机型号取 <code>Build.MODEL</code>，不受 UA 伪装影响。打开即自动采集，勾选自动回传发同一客服群。<b>任何安卓品牌通用，不需厂商账号。</b>
+      </div>
+      <div class="btns" style="margin-top:0"><a class="apkdl" id="bApk" href="https://jiabinsun079-hue.github.io/pos-fingerprint/PosAssistant.apk" download="PosAssistant.apk">下载 PosAssistant.apk（29 KB）</a></div>
+      <div style="font-size:11.5px;color:var(--tx3);line-height:1.8;margin-top:9px">
+        装机：① 收银机允许「未知来源 / 侧载」→ 打开下载的安装包；② 桌面开「POS助手」→ 自动读出主机 + 打印机型号并裁决；③ 勾「自动回传」→ 结果落客服飞书群。USB 插拔自动重采。<br>
+        <span style="color:var(--amber)">诚实边界：</span>已构建 / 签名 / 结构校验通过；真机运行态（原生枚举 + 回传投递）以装机实测为准。
+      </div>
     </div>
     <div class="card">
       <div class="sec"><b>AI 回传桥</b> RETURN LOOP · 结果出去 / 修订回来</div>
@@ -723,7 +737,7 @@ function autoSaveLast(){
   /* 去重键只取稳定身份（主机型号 + USB 打印机），LAN 启发式候选随扫描时序波动，不参与去重 */
   var sig=function(r){ return JSON.stringify([r.host&&r.host.model, (r.printers||[]).filter(function(p){ return p.attach==='usb'; }).map(function(p){ return [p.name, p.preset, p.conf]; })]); };
   var dup=state.records.find(function(r){ return r.label==='real' && sig(r)===sig(state.last); });
-  if(dup){ dup.ts=state.last.ts; dup.deep_link=state.last.deep_link; dup.preset_guess=state.last.preset_guess; dup.confidence=state.last.confidence; dup.printers=state.last.printers; dup.lan=state.last.lan; dup.signals=state.last.signals; state.last=dup; saveRecords(); renderFleet(); trace('自动入库：指纹与已有实测记录相同，更新时间而非重复入库', 'info'); }
+  if(dup){ dup.ts=state.last.ts; dup.deep_link=state.last.deep_link; dup.preset_guess=state.last.preset_guess; dup.confidence=state.last.confidence; dup.printers=state.last.printers; dup.lan=state.last.lan; dup.signals=state.last.signals; dup.usb_auth=state.last.usb_auth; state.last=dup; saveRecords(); renderFleet(); trace('自动入库：指纹与已有实测记录相同，更新时间而非重复入库', 'info'); }
   else { addRecord(state.last); trace('已自动入库 '+state.last.id, 'ok'); }
 }
 /* Windows 补采合并：浏览器拿不到 WMI 型号/打印驱动队列，粘入 windows_collect.ps1 的只读输出补全 */
@@ -969,7 +983,7 @@ window.__fp={
   state:state,
   injectUsb:function(devs){ state.usb=devs.map(function(d){ return Object.assign({attach:'usb', printerClass:false, productName:'', manufacturerName:'', serial:''}, d); }); setStage(1,'done','注入 '+state.usb.length+' 台（测试钩子）',100); matchAll(); },
   run:runAll, match:matchAll, collectLan:collectLan, netTargets:netTargets,
-  addRecord:addRecord, deleteRecords:deleteRecords, buildRecord:buildRecord,
+  addRecord:addRecord, deleteRecords:deleteRecords, buildRecord:buildRecord, saveLast:autoSaveLast,
   setControl:function(k,v){ state.ctl[k]=v; var el={thr:'cThr',con:'cCon',to:'cTo',mode:'cMode',net:'cNet',lan:'cLan',bt:'cBt',auto:'cAuto',open:'cOpen',report:'cReport'}[k]; if(el){ var e=$(el); if(e.type==='checkbox') e.checked=v; else e.value=v; } if(k==='report'){ var r=loadReport(); r.on=!!v; saveReport(r); renderReport(); } matchAll(); },
   records:function(){ return state.records; }, reorder:reorder, mergeCollect:mergeCollect,
   env:function(){ return state.env; }, handoff:buildHandoff, applyRevision:applyRevision, trainerPlan:trainerPlan,
