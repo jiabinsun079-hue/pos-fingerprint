@@ -232,15 +232,16 @@ footer .sp{margin-left:auto;}
       <textarea id="mergeBox" style="width:100%;margin-top:9px;background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:7px 9px;font:11.5px/1.6 var(--mono);min-height:74px;resize:vertical" placeholder='粘贴 windows_collect.ps1 输出的 JSON（{"v":1,"source":"windows_collect",…}）' spellcheck="false"></textarea>
     </div>
     <div class="card">
-      <div class="sec"><b>安卓助手 APK</b> 锁死机终态 · 原生枚举免授权</div>
+      <div class="sec"><b>安卓助手 APK</b> v1.2 · 原生枚举免授权 · 可打印自检页</div>
       <div style="font-size:12px;color:var(--tx2);line-height:1.8;margin-bottom:8px">
         商米等锁死安卓机：浏览器/WebView 点「授权并枚举 USB」<b>没有选择框弹出</b>（选择器不可用或打印机被收银 App 独占），网页拿不到打印机。<br>
-        装机时随 POS 一起装这个独立助手：原生 <code>UsbManager</code> 枚举 VID/PID/产品名——<b>免授权弹窗、独占也能读</b>；主机型号取 <code>Build.MODEL</code>，不受 UA 伪装影响。打开即自动采集，勾选自动回传发同一客服群。<b>任何安卓品牌通用，不需厂商账号。</b>
+        装机时随 POS 一起装这个独立助手：原生 <code>UsbManager</code> 枚举 VID/PID/产品名——<b>免授权弹窗、独占也能读</b>；主机型号取 <code>Build.MODEL</code>，不受 UA 伪装影响。打开即自动采集，勾选自动回传发同一客服群。<b>任何安卓品牌通用，不需厂商账号。</b><br>
+        <b style="color:var(--amber)">v1.2 新增「打印自检页」</b>：点击 + 二次确认后，原生 USB 直发 TSPL <code>SELFTEST</code> 命令让打印机出纸自检；接口被收银 App 独占时如实报「占用」，绝不自动打印。
       </div>
-      <div class="btns" style="margin-top:0"><a class="apkdl" id="bApk" href="https://jiabinsun079-hue.github.io/pos-fingerprint/PosAssistant.apk" download="PosAssistant.apk">下载 PosAssistant.apk（29 KB）</a></div>
+      <div class="btns" style="margin-top:0"><a class="apkdl" id="bApk" href="https://jiabinsun079-hue.github.io/pos-fingerprint/PosAssistant.apk" download="PosAssistant.apk">下载 PosAssistant.apk v1.2（33 KB）</a></div>
       <div style="font-size:11.5px;color:var(--tx3);line-height:1.8;margin-top:9px">
-        装机：① 收银机允许「未知来源 / 侧载」→ 打开下载的安装包；② 桌面开「POS助手」→ 自动读出主机 + 打印机型号并裁决；③ 勾「自动回传」→ 结果落客服飞书群。USB 插拔自动重采。<br>
-        <span style="color:var(--amber)">诚实边界：</span>已构建 / 签名 / 结构校验通过；真机运行态（原生枚举 + 回传投递）以装机实测为准。
+        装机：① 收银机允许「未知来源 / 侧载」→ 打开下载的安装包（v1.1 可直接覆盖升级）；② 桌面开「POS助手」→ 自动读出主机 + 打印机型号并裁决；③ 勾「自动回传」→ 结果落客服飞书群；④ 点「打印自检页」→ 确认后打印机出纸自检。USB 插拔自动重采。<br>
+        <span style="color:var(--amber)">诚实边界：</span>已构建 / 签名 / 结构校验通过（v1.2 dex 含 SELFTEST 命令与打印按钮）；真机运行态（原生枚举 + 回传投递 + 自检页出纸 / USB 独占占用行为）以装机点击实测为准。
       </div>
     </div>
     <div class="card">
