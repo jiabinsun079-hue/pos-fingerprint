@@ -232,16 +232,16 @@ footer .sp{margin-left:auto;}
       <textarea id="mergeBox" style="width:100%;margin-top:9px;background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:7px 9px;font:11.5px/1.6 var(--mono);min-height:74px;resize:vertical" placeholder='粘贴 windows_collect.ps1 输出的 JSON（{"v":1,"source":"windows_collect",…}）' spellcheck="false"></textarea>
     </div>
     <div class="card">
-      <div class="sec"><b>安卓助手 APK</b> v1.3 · 原生枚举免授权 · 测试标签/自检页</div>
+      <div class="sec"><b>安卓助手 APK</b> v1.4 · 原生枚举免授权 · 软件自检页/测试标签</div>
       <div style="font-size:12px;color:var(--tx2);line-height:1.8;margin-bottom:8px">
         商米等锁死安卓机：浏览器/WebView 点「授权并枚举 USB」<b>没有选择框弹出</b>（选择器不可用或打印机被收银 App 独占），网页拿不到打印机。<br>
         装机时随 POS 一起装这个独立助手：原生 <code>UsbManager</code> 枚举 VID/PID/产品名——<b>免授权弹窗、独占也能读</b>；主机型号取 <code>Build.MODEL</code>，不受 UA 伪装影响。打开即自动采集，勾选自动回传发同一客服群。<b>任何安卓品牌通用，不需厂商账号。</b><br>
-        <b style="color:var(--amber)">v1.3</b>：真机实测 <code>SELFTEST</code> 发送成功但 XP-330B 不出纸（其 TSPL 子集不认该命令）→ 新增「打印测试标签」（杯贴同命令族 SIZE/GAP/CLS/TEXT/PRINT）作软件触发打印与判别；每次打印结果（已发字节/占用/失败）随回传包发出，客服远程可读。点击 + 二次确认才出纸，绝不自动打印。
+        <b style="color:var(--amber)">v1.4</b>：真机已证「打印测试标签」出纸（核心 TSPL 通），但裸 <code>SELFTEST</code> 送达不出纸——XP-330B 固件 TSPL 子集不认该命令，固件配置自检页只能硬件键（按住 FEED 开机）。故把「打印自检页」改成 <b>TSPL 构造的软件自检页</b>（标题 + 质量条 + 黑块 + 条码，查打印头/走纸/间隙），用 SIZE/GAP/CLS/TEXT/BAR/BARCODE/PRINT 核心命令，<b>芯烨与 Zebra 标签机都认</b>，比厂商 SELFTEST 更通用。每次打印结果（已发字节/占用/失败）随回传包发出，客服远程可读。点击 + 二次确认才出纸，绝不自动打印。
       </div>
-      <div class="btns" style="margin-top:0"><a class="apkdl" id="bApk" href="https://jiabinsun079-hue.github.io/pos-fingerprint/PosAssistant.apk" download="PosAssistant.apk">下载 PosAssistant.apk v1.3（37 KB）</a></div>
+      <div class="btns" style="margin-top:0"><a class="apkdl" id="bApk" href="https://jiabinsun079-hue.github.io/pos-fingerprint/PosAssistant.apk" download="PosAssistant.apk">下载 PosAssistant.apk v1.4（37 KB）</a></div>
       <div style="font-size:11.5px;color:var(--tx3);line-height:1.8;margin-top:9px">
-        装机：① 收银机允许「未知来源 / 侧载」→ 打开下载的安装包（v1.1 可直接覆盖升级）；② 桌面开「POS助手」→ 自动读出主机 + 打印机型号并裁决；③ 勾「自动回传」→ 结果落客服飞书群；④ 点「打印测试标签」或「打印自检页」→ 确认后出纸。USB 插拔自动重采。<br>
-        <span style="color:var(--amber)">诚实边界：</span>已构建 / 签名 / 结构校验通过（v1.3 dex 含测试标签命令与打印结果回传）；真机出纸（测试标签 vs SELFTEST）以装机点击实测为准，打印结果随回传远程可读。
+        装机：① 收银机允许「未知来源 / 侧载」→ 打开下载的安装包（v1.1+ 同证书可直接覆盖升级）；② 桌面开「POS助手」→ 自动读出主机 + 打印机型号并裁决；③ 勾「自动回传」→ 结果落客服飞书群；④ 点「打印自检页」（TSPL 软件页）或「打印测试标签」→ 确认后出纸。USB 插拔自动重采。<br>
+        <span style="color:var(--amber)">诚实边界：</span>已构建 / 签名(v1+v2+v3) / 结构校验通过（v1.4 dex 含 TSPL 软件自检页 + 测试标签 + 打印结果回传，裸 SELFTEST 已移除）；真机出纸以装机点击实测为准，打印结果随回传远程可读。固件配置自检页（带 IP/浓度）在 XP-330B 上仅硬件键，软件页不替代它。
       </div>
     </div>
     <div class="card">
