@@ -243,6 +243,19 @@ footer .sp{margin-left:auto;}
       <div class="kv" id="revStatus" style="font-size:11.5px;color:var(--tx3);margin-top:6px">尚未应用修订</div>
     </div>
     <div class="card">
+      <div class="sec"><b>自动回传</b> AUTO-RETURN · 默认关闭 / opt-in</div>
+      <div id="reportDisc" style="font-size:12px;color:var(--tx2);line-height:1.8;margin-bottom:8px;border:1px solid var(--line2);border-left:3px solid var(--amber);border-radius:6px;padding:8px 10px;background:rgba(255,176,32,.06)">
+        开启后，<b style="color:var(--amber)">每次采集完成会自动把回传包发送到客服飞书群</b>（含本机型号、打印机候选、机队记录与载体能力；不含账号密码）。<br>
+        默认关闭，只有你勾选后才发送；同一指纹 10 分钟内不重复发，每分钟最多 1 次。发送失败会存入「待重发」，可手动重试。关闭即停发。
+      </div>
+      <label class="sw" style="margin-bottom:6px"><input type="checkbox" id="cReport">采集完成自动回传到客服群（将自动发送，见上方说明）</label>
+      <div class="kv" id="reportStatus" style="font-size:11.5px;color:var(--tx3);margin:6px 0">未开启自动回传</div>
+      <div class="btns" style="margin-top:0"><button class="pri" id="bReportNow">立即回传一次</button><button id="bReportRetry">重发待回传（<span id="outboxN">0</span>）</button></div>
+      <div style="border-top:1px dashed var(--line2);margin:10px 0 8px"></div>
+      <div style="font-size:11.5px;color:var(--tx3);line-height:1.7;margin-bottom:6px">客服配置：在专用群「门店设备指纹回传」添加<b style="color:var(--tx2)">自定义机器人</b>，安全设置选「自定义关键词」填 <b style="color:var(--tx2)">fp_handoff</b>，把 webhook 地址粘到下面（本机保存）。公开托管页由客服把地址写入 REPORT_WEBHOOK 常量后重新发布，门店端无需配置。</div>
+      <input type="text" id="reportUrl" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx" spellcheck="false" style="width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:7px 9px;font:11.5px/1.6 var(--mono)">
+    </div>
+    <div class="card">
       <div class="sec"><b>指纹表状态</b> FINGERPRINT DB</div>
       <div style="font-size:12px;color:var(--tx2);line-height:1.9">
         产品名/驱动名规则：<b style="color:var(--tx)">7 族</b>（xp330b 优先于 xp58，避免 xprinter 吞并）<br>
@@ -289,6 +302,10 @@ footer .sp{margin-left:auto;}
 /* 门店设备指纹自检台 —— 零依赖单文件。装机打开即自动抓取 POS 型号与打印机型号。
    载体：Windows/Android 浏览器(WebUSB)； locked-down 商米走 sunmi_collect.sh(adb) 同构输出。 */
 var TRAINER_URI = 'file:///D:/craft-anything/POS%E9%97%AE%E9%A2%98%E8%A7%A3%E6%9E%90/printer_probe/printer_3d/printer_teardown_3d.html';
+/* 自动回传落点：飞书群「自定义机器人」webhook（实测 open.feishu.cn 返回 Access-Control-Allow-Origin:*，浏览器可跨域 POST 且响应可读）。
+   为空=未配置，自动回传不可用。客服在专用群添加自定义机器人（安全设置=自定义关键词 fp_handoff），把 webhook 填到这里或下方配置框。
+   妙搭 automation webhook 实测无 CORS 头且跳登录，不适合公开页浏览器直发，故弃用。 */
+var REPORT_WEBHOOK = '';
 var PRESET_META = {
   xp58:{name:'芯烨 58mm 小票机', color:'#22d3ee'},
   gp58:{name:'佳博 58mm 小票机', color:'#4d9fff'},
@@ -311,7 +328,7 @@ var VID_PID = {}; /* '0xvid:0xpid': {preset,conf,evidence}。仅 AI 修订包带
 var SUNMI_MODELS = ['T2','T2s','T2 Lite','D2','D2s','D3','V2 Pro','V2','K2','M2','M2 Max','T1','T1 Host'];
 var state = {
   host:null, usb:[], lan:[], spooler:[], bt:null, printers:[], guess:null, conf:0, signals:[],
-  ctl:{thr:0.6, con:32, to:1200, mode:'auto', net:'192.168.1.0/24', lan:true, bt:true, auto:true, open:false},
+  ctl:{thr:0.6, con:32, to:1200, mode:'auto', net:'192.168.1.0/24', lan:true, bt:true, auto:true, open:false, report:false},
   records:[], views:[], manual:[], search:'', fSrc:'', fPreset:'', sort:{key:'ts', dir:-1}, bulk:{},
   running:false, last:null
 };
@@ -679,6 +696,7 @@ async function runAll(requestUsb){
   matchAll();
   state.last=buildRecord('real');
   autoSaveLast();
+  autoReport();
   state.running=false;
 }
 function autoSaveLast(){
@@ -704,6 +722,7 @@ function mergeCollect(txt){
   matchAll();
   state.last=buildRecord('real');
   autoSaveLast();
+  autoReport();
   toast('补采已合并：'+(state.host.model||'Windows')+' / '+(state.guess?PRESET_META[state.guess].name:'打印机未确认'), 'ok');
   trace('L0+ 合并 windows_collect：host='+(state.host.model||'?')+' spooler='+state.spooler.length, 'ok');
   return true;
@@ -750,6 +769,96 @@ function applyRevision(txt){
   trace('AI 修订包应用：vid_pid+'+nV+' overrides+'+nO, 'ok');
   return true;
 }
+/* ---------- 自动回传（opt-in，默认关）：采集完成把回传包 POST 到飞书群自定义机器人 webhook ---------- */
+var REPORT_KEY='fp_report_v1';
+var AUTO_MIN_GAP=60000, DEDUP_WINDOW=600000, MANUAL_MIN_GAP=10000, OUTBOX_CAP=20, TEXT_CAP=9000;
+function loadReport(){ try{ var o=JSON.parse(localStorage.getItem(REPORT_KEY)||'{}'); return {on:!!o.on, outbox:Array.isArray(o.outbox)?o.outbox:[], lastSent:+o.lastSent||0, lastHash:o.lastHash||'', lastManual:+o.lastManual||0, url:o.url||''}; }catch(e){ return {on:false,outbox:[],lastSent:0,lastHash:'',lastManual:0,url:''}; } }
+function saveReport(r){ try{ localStorage.setItem(REPORT_KEY, JSON.stringify(r)); }catch(e){ trace('自动回传状态持久化失败: '+e.message,'warn'); } }
+function reportUrl(){ var r=loadReport(); return String(r.url||REPORT_WEBHOOK||'').trim(); }
+function hashStr(s){ var h=5381; for(var i=0;i<s.length;i++){ h=((h<<5)+h+s.charCodeAt(i))>>>0; } return h.toString(36); }
+function buildReportText(){
+  var payload={v:1, kind:'fp_handoff', ts:new Date().toISOString(), env:state.env, current:state.last, records:state.records};
+  var body=JSON.stringify(payload);
+  if(body.length>TEXT_CAP){ payload.records=(state.records||[]).slice(0,3); payload.trimmed=true; body=JSON.stringify(payload); }
+  if(body.length>TEXT_CAP){ payload.records=[]; payload.current=state.last; payload.trimmed='current_only'; body=JSON.stringify(payload); }
+  /* 去重哈希只取稳定指纹内容（不含 ts），否则同一设备不同时刻 ts 不同会导致去重失效 */
+  var stable=JSON.stringify({env:state.env, current:state.last, records:state.records});
+  return {text:'fp_handoff 自动回传\n'+body, payload:payload, hash:hashStr(stable)};
+}
+function setReportStatus(msg, kind){ var el=$('reportStatus'); if(!el) return; el.textContent=msg; el.style.color=kind==='ok'?'var(--green)':kind==='bad'?'var(--red,#ff6b6b)':kind==='warn'?'var(--amber)':'var(--tx3)'; }
+function renderReport(){
+  var r=loadReport(); state.ctl.report=r.on;
+  if($('cReport')) $('cReport').checked=r.on;
+  if($('reportUrl')) $('reportUrl').value=r.url||'';
+  if($('outboxN')) $('outboxN').textContent=r.outbox.length;
+  if(!r.on) setReportStatus('未开启自动回传'+(reportUrl()?'':'（且未配置回传地址）'),'');
+  else if(!reportUrl()) setReportStatus('已开启，但未配置回传地址：无法发送（客服填入 webhook 后生效）','warn');
+  else setReportStatus('已开启自动回传 · 待重发 '+r.outbox.length+' 条'+(r.lastSent?' · 上次发送 '+new Date(r.lastSent).toTimeString().slice(0,8):''),'ok');
+}
+async function sendReport(text){
+  var url=reportUrl();
+  if(!url) return {ok:false, code:'no_url', msg:'未配置回传地址'};
+  if(!/^https:\/\/open\.feishu\.cn\/open-apis\/bot\/v2\/hook\//.test(url)) return {ok:false, code:'bad_url', msg:'回传地址不是飞书自定义机器人 webhook'};
+  var body=JSON.stringify({msg_type:'text', content:{text:text}});
+  var ctl=('AbortController' in window)?new AbortController():null;
+  var timer=ctl?setTimeout(function(){ ctl.abort(); }, 10000):null;
+  try{
+    var res=await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:body, signal:ctl?ctl.signal:undefined});
+    if(timer) clearTimeout(timer);
+    var j=null; try{ j=await res.json(); }catch(e){}
+    var code=j&&(j.code!==undefined?j.code:j.StatusCode);
+    if(res.ok && (code===0||(code===undefined&&res.status===200))) return {ok:true, code:0, msg:'已发送'};
+    return {ok:false, code:code, msg:(j&&(j.msg||j.StatusMessage))||('HTTP '+res.status)};
+  }catch(e){
+    if(timer) clearTimeout(timer);
+    /* cors 被拒（典型：本地 file:// 的 null origin，飞书对 null 不回 ACAO 头）→ no-cors 简单请求兜底投递。
+       text/plain 是简单内容类型，飞书仍按 JSON 解析；回执不可读，落群与否由客服侧查表确认。 */
+    try{
+      await fetch(url, {method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=UTF-8'}, body:body});
+      return {ok:true, code:'opaque', opaque:true, msg:'已发送（本地打开跨域回执不可读，客服群可查）'};
+    }catch(e2){ return {ok:false, code:'network', msg:e2.message||e.message||'网络/跨域失败'}; }
+  }
+}
+function pushOutbox(r, item){ r.outbox.push(item); if(r.outbox.length>OUTBOX_CAP) r.outbox=r.outbox.slice(-OUTBOX_CAP); saveReport(r); }
+async function autoReport(){
+  if(!state.ctl.report) return {skipped:'off'};
+  var url=reportUrl(); if(!url){ setReportStatus('已开启但未配置回传地址，本次未发送','warn'); trace('自动回传跳过：未配置 webhook','warn'); return {skipped:'no_url'}; }
+  var r=loadReport(); var now=Date.now();
+  if(now-r.lastSent<AUTO_MIN_GAP){ trace('自动回传跳过：距上次发送不足 60s（限频）','info'); return {skipped:'rate'}; }
+  var b=buildReportText();
+  if(!b.payload||b.payload.v!==1||b.payload.kind!=='fp_handoff'){ trace('自动回传跳过：回传包校验失败','bad'); return {skipped:'invalid'}; }
+  if(b.hash===r.lastHash && now-r.lastSent<DEDUP_WINDOW){ trace('自动回传跳过：同一指纹 10 分钟内已发（去重）','info'); return {skipped:'dup'}; }
+  setReportStatus('正在回传…','');
+  var res=await sendReport(b.text);
+  r=loadReport();
+  if(res.ok){ r.lastSent=now; r.lastHash=b.hash; r.outbox=r.outbox.filter(function(x){ return x.hash!==b.hash; }); saveReport(r); setReportStatus('已自动回传 '+new Date(now).toTimeString().slice(0,8)+(res.opaque?' · 本地打开回执不可读，客服群可查':' · 客服群可见'),'ok'); trace('自动回传成功：'+state.records.length+' 条记录 → 客服飞书群'+(res.opaque?'（no-cors 兜底投递）':''),'ok'); toast('回传包已自动发送到客服群','ok'); }
+  else { pushOutbox(r, {ts:now, hash:b.hash, text:b.text}); setReportStatus('自动回传失败：'+res.msg+'（已存入待重发）','bad'); trace('自动回传失败：'+res.msg+' → 待重发','bad'); }
+  renderReport(); return res;
+}
+async function manualReport(){
+  var url=reportUrl(); if(!url){ toast('未配置回传地址：客服先填入群自定义机器人 webhook','warn'); setReportStatus('未配置回传地址，无法发送','warn'); return {ok:false,code:'no_url'}; }
+  var r=loadReport(); var now=Date.now();
+  if(now-r.lastManual<MANUAL_MIN_GAP){ toast('操作太频繁，请稍候再试（限频 10s）','warn'); return {skipped:'rate'}; }
+  var b=buildReportText();
+  setReportStatus('正在回传…','');
+  var res=await sendReport(b.text);
+  r=loadReport(); r.lastManual=now;
+  if(res.ok){ r.lastSent=now; r.lastHash=b.hash; r.outbox=r.outbox.filter(function(x){ return x.hash!==b.hash; }); saveReport(r); setReportStatus('已手动回传 '+new Date(now).toTimeString().slice(0,8)+(res.opaque?' · 本地打开回执不可读，客服群可查':''),'ok'); toast('回传包已发送到客服群','ok'); trace('手动回传成功'+(res.opaque?'（no-cors 兜底）':''),'ok'); }
+  else { pushOutbox(r, {ts:now, hash:b.hash, text:b.text}); setReportStatus('回传失败：'+res.msg+'（已存入待重发）','bad'); toast('回传失败：'+res.msg,'bad'); }
+  renderReport(); return res;
+}
+async function retryOutbox(){
+  var r=loadReport(); if(!r.outbox.length){ toast('没有待重发的回传包','info'); return {ok:true,n:0}; }
+  if(!reportUrl()){ toast('未配置回传地址，无法重发','warn'); return {ok:false,code:'no_url'}; }
+  var items=r.outbox.slice(), okN=0, fail=[];
+  setReportStatus('正在重发 '+items.length+' 条…','');
+  for(var i=0;i<items.length;i++){ var res=await sendReport(items[i].text); if(res.ok){ okN++; } else { fail.push(items[i]); } }
+  r=loadReport(); r.outbox=fail; if(okN){ r.lastSent=Date.now(); } saveReport(r); renderReport();
+  setReportStatus('重发完成：成功 '+okN+' · 仍失败 '+fail.length, fail.length?'warn':'ok');
+  toast('重发：成功 '+okN+' 条'+(fail.length?'，'+fail.length+' 条仍失败':''), fail.length?'warn':'ok');
+  trace('待重发处理：成功 '+okN+' 失败 '+fail.length, fail.length?'warn':'ok');
+  return {ok:fail.length===0, n:okN, fail:fail.length};
+}
 /* ---------- controls ---------- */
 function bindControls(){
   var sync=function(){ $('vThr').textContent=(+state.ctl.thr).toFixed(2); $('vCon').textContent=state.ctl.con; $('vTo').textContent=state.ctl.to; };
@@ -763,16 +872,21 @@ function bindControls(){
   $('cBt').onchange=function(){ state.ctl.bt=this.checked; };
   $('cAuto').onchange=function(){ state.ctl.auto=this.checked; };
   $('cOpen').onchange=function(){ state.ctl.open=this.checked; };
+  $('cReport').onchange=function(){ var r=loadReport(); r.on=this.checked; state.ctl.report=this.checked; saveReport(r); renderReport(); if(this.checked){ toast('已开启自动回传：采集完成将自动发送回传包到客服飞书群','warn'); trace('自动回传已开启（opt-in）：每次采集完成将发送到客服群','warn'); } else { trace('自动回传已关闭：停止发送','info'); } };
+  $('bReportNow').onclick=function(){ manualReport(); };
+  $('bReportRetry').onclick=function(){ retryOutbox(); };
+  $('reportUrl').onchange=function(){ var r=loadReport(); r.url=this.value.trim(); saveReport(r); renderReport(); trace('回传地址已'+(r.url?'保存（本机）':'清空'),'info'); };
   $('bRun').onclick=function(){ runAll(false); };
   $('bUsb').onclick=function(){ runAll(true); };
   $('bLan').onclick=async function(){ await collectLan(); matchAll(); };
   $('bExport').onclick=function(){ download('device_fingerprint_'+Date.now()+'.json', JSON.stringify(state.last||buildRecord('real'), null, 1)); toast('已导出本条 JSON','ok'); };
   $('bLink').onclick=function(){ copyText((state.last||buildRecord('real')).deep_link); };
   $('bReset').onclick=function(){
-    state.ctl={thr:0.6, con:32, to:1200, mode:'auto', net:'192.168.1.0/24', lan:true, bt:true, auto:true, open:false};
+    state.ctl={thr:0.6, con:32, to:1200, mode:'auto', net:'192.168.1.0/24', lan:true, bt:true, auto:true, open:false, report:false};
     $('cThr').value=0.6; $('cCon').value=32; $('cTo').value=1200; $('cMode').value='auto'; $('cNet').value='192.168.1.0/24'; $('cNetPre').value='';
-    $('cLan').checked=true; $('cBt').checked=true; $('cAuto').checked=true; $('cOpen').checked=false;
-    sync(); matchAll(); toast('控制已重置','ok');
+    $('cLan').checked=true; $('cBt').checked=true; $('cAuto').checked=true; $('cOpen').checked=false; $('cReport').checked=false;
+    var rr=loadReport(); rr.on=false; saveReport(rr);
+    sync(); matchAll(); renderReport(); toast('控制已重置','ok');
   };
   $('bCopyPs').onclick=function(){ copyText('powershell -NoProfile -ExecutionPolicy Bypass -File windows_collect.ps1'); };
   $('bMerge').onclick=function(){ var t=$('mergeBox').value.trim(); if(!t){ toast('请先粘贴 windows_collect.ps1 的输出','warn'); return; } if(mergeCollect(t)) $('mergeBox').value=''; };
@@ -825,7 +939,7 @@ function tick(){ $('clock').textContent=new Date().toTimeString().slice(0,8); }
 setInterval(tick, 1000); tick();
 loadRecords(); bindControls(); bindFleet(); renderViews(); renderFleet();
 try{ var vp=JSON.parse(localStorage.getItem('fp_vidpid_v1')||'{}'); Object.keys(vp).forEach(function(k){ VID_PID[k]=vp[k]; }); }catch(e){}
-detectEnv(); renderEnv();
+detectEnv(); renderEnv(); renderReport();
 if(!trainerPlan(location.pathname).open) $('bTrainer').textContent='复制 3D 解剖深链（客服侧打开）';
 $('envAct').onclick=function(){ var card=$('bCopyPs').closest('.card'); card.scrollIntoView({behavior:'smooth', block:'center'}); card.style.boxShadow='0 0 0 2px var(--amber)'; setTimeout(function(){ card.style.boxShadow=''; }, 1200); };
 $('vidCount').textContent=Object.keys(VID_PID).length+' 条';
@@ -837,9 +951,12 @@ window.__fp={
   injectUsb:function(devs){ state.usb=devs.map(function(d){ return Object.assign({attach:'usb', printerClass:false, productName:'', manufacturerName:'', serial:''}, d); }); setStage(1,'done','注入 '+state.usb.length+' 台（测试钩子）',100); matchAll(); },
   run:runAll, match:matchAll, collectLan:collectLan, netTargets:netTargets,
   addRecord:addRecord, deleteRecords:deleteRecords, buildRecord:buildRecord,
-  setControl:function(k,v){ state.ctl[k]=v; var el={thr:'cThr',con:'cCon',to:'cTo',mode:'cMode',net:'cNet',lan:'cLan',bt:'cBt',auto:'cAuto',open:'cOpen'}[k]; if(el){ var e=$(el); if(e.type==='checkbox') e.checked=v; else e.value=v; } matchAll(); },
+  setControl:function(k,v){ state.ctl[k]=v; var el={thr:'cThr',con:'cCon',to:'cTo',mode:'cMode',net:'cNet',lan:'cLan',bt:'cBt',auto:'cAuto',open:'cOpen',report:'cReport'}[k]; if(el){ var e=$(el); if(e.type==='checkbox') e.checked=v; else e.value=v; } if(k==='report'){ var r=loadReport(); r.on=!!v; saveReport(r); renderReport(); } matchAll(); },
   records:function(){ return state.records; }, reorder:reorder, mergeCollect:mergeCollect,
-  env:function(){ return state.env; }, handoff:buildHandoff, applyRevision:applyRevision, trainerPlan:trainerPlan
+  env:function(){ return state.env; }, handoff:buildHandoff, applyRevision:applyRevision, trainerPlan:trainerPlan,
+  report:{auto:autoReport, now:manualReport, retry:retryOutbox, send:sendReport, text:buildReportText, url:reportUrl, load:loadReport, render:renderReport,
+    setUrl:function(u){ var r=loadReport(); r.url=String(u||'').trim(); saveReport(r); renderReport(); return r.url; },
+    setOn:function(v){ var r=loadReport(); r.on=!!v; state.ctl.report=!!v; saveReport(r); renderReport(); return r.on; }}
 };
 </script>
 </body>
