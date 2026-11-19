@@ -232,16 +232,16 @@ footer .sp{margin-left:auto;}
       <textarea id="mergeBox" style="width:100%;margin-top:9px;background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:6px;padding:7px 9px;font:11.5px/1.6 var(--mono);min-height:74px;resize:vertical" placeholder='粘贴 windows_collect.ps1 输出的 JSON（{"v":1,"source":"windows_collect",…}）' spellcheck="false"></textarea>
     </div>
     <div class="card">
-      <div class="sec"><b>安卓助手 APK</b> v1.5 · 原生枚举免授权 · ESC/POS自检页/TSPL测试标签</div>
+      <div class="sec"><b>安卓助手 APK</b> v1.6 · 原生枚举免授权 · ESC/POS自检页(真机已渲染) · 打印内容可见</div>
       <div style="font-size:12px;color:var(--tx2);line-height:1.8;margin-bottom:8px">
         商米等锁死安卓机：浏览器/WebView 点「授权并枚举 USB」<b>没有选择框弹出</b>（选择器不可用或打印机被收银 App 独占），网页拿不到打印机。<br>
         装机时随 POS 一起装这个独立助手：原生 <code>UsbManager</code> 枚举 VID/PID/产品名——<b>免授权弹窗、独占也能读</b>；主机型号取 <code>Build.MODEL</code>，不受 UA 伪装影响。打开即自动采集，勾选自动回传发同一客服群。<b>任何安卓品牌通用，不需厂商账号。</b><br>
-        <b style="color:var(--amber)">v1.5</b>：真机照片证实 XP-330B 当前处 <b>RECEIPT 小票(ESC/POS)模式</b>——之前发的 TSPL 命令被当普通文字逐行打印（不是渲染标签），故 v1.2~v1.4 的 TSPL 自检页都"出纸但出的是命令文本"。芯烨标签机是双模式（LABEL 标签/TSPL ↔ RECEIPT 票据/ESC-POS）。v1.5 把「打印自检页」改发 <b>标准 ESC/POS</b>（<code>1B 40</code> 初始化 + 标尺 + 浓度阶 + 全点行查缺针 + 走纸，末尾试固件自检 <code>GS ( A</code>），<b>小票模式直接渲染、纯打印不改模式/配置</b>；「打印测试标签」保留 TSPL 供标签模式。模式判别：TSPL 印成文字=小票模式→用自检页按钮。打印结果随回传包发出客服远程可读。点击 + 二次确认才出纸，绝不自动打印。
+        <b style="color:var(--amber)">v1.6</b>：真机照片证实 v1.5 的 <b>ESC/POS 自检页在小票模式渲染成功</b>（POS SELF-TEST 标题/标尺/D0~D3 浓度阶正确）。但末尾 <code>GS ( A</code> 触发固件吐出一段 TSPL「NOW IN DUMP MODE / ENTER DUMP」横幅（小票模式下印成文字），<b>并非干净的配置自检页</b> → v1.6 <b>移除 GS ( A</b>。v1.6 新增<b>打印内容可见</b>：回传包 <code>last_print.preview</code> 带人类可读的打印内容（客服/AI 远程即可读"印了什么"，不必拍照），机内新增「<b>预览打印内容</b>」按钮先看将印什么。「打印测试标签」保留 TSPL 供标签模式；TSPL 印成文字=小票模式→用自检页。点击 + 二次确认才出纸，绝不自动打印。
       </div>
-      <div class="btns" style="margin-top:0"><a class="apkdl" id="bApk" href="https://jiabinsun079-hue.github.io/pos-fingerprint/PosAssistant.apk" download="PosAssistant.apk">下载 PosAssistant.apk v1.5（37 KB）</a></div>
+      <div class="btns" style="margin-top:0"><a class="apkdl" id="bApk" href="https://jiabinsun079-hue.github.io/pos-fingerprint/PosAssistant.apk" download="PosAssistant.apk">下载 PosAssistant.apk v1.6（37 KB）</a></div>
       <div style="font-size:11.5px;color:var(--tx3);line-height:1.8;margin-top:9px">
-        装机：① 收银机允许「未知来源 / 侧载」→ 打开下载的安装包（v1.1+ 同证书可直接覆盖升级）；② 桌面开「POS助手」→ 自动读出主机 + 打印机型号并裁决；③ 勾「自动回传」→ 结果落客服飞书群；④ 小票模式点「打印自检页」(ESC/POS)、标签模式点「打印测试标签」(TSPL)→ 确认后出纸。USB 插拔自动重采。<br>
-        <span style="color:var(--amber)">诚实边界：</span>已构建 / 签名(v1+v2+v3) / 结构校验通过（v1.5 dex 含 ESC/POS 自检页 + GS ( A 固件自检尝试 + TSPL 测试标签 + 打印结果回传）；ESC/POS 诊断页在小票模式渲染、GS ( A 能否出固件配置页以装机点击实测为准，打印结果随回传远程可读。改打印机模式（标签↔小票）属改配置、可能影响收银打印，未做；固件配置自检页若 GS ( A 不出则仍需硬件键。
+        装机：① 收银机允许「未知来源 / 侧载」→ 打开下载的安装包（v1.1+ 同证书可直接覆盖升级）；② 桌面开「POS助手」→ 自动读出主机 + 打印机型号并裁决；③ 勾「自动回传」→ 结果落客服飞书群；④ 可先点「预览打印内容」看将印什么；小票模式点「打印自检页」(ESC/POS)、标签模式点「打印测试标签」(TSPL)→ 确认后出纸。USB 插拔自动重采。<br>
+        <span style="color:var(--amber)">诚实边界：</span>已构建 / 签名(v1+v2+v3) / 结构校验通过（v1.6 dex 含 ESC/POS 自检页<b>不含 GS ( A</b> + TSPL 测试标签 + <code>last_print.preview</code> 打印内容回传 + 机内预览）；ESC/POS 诊断页小票模式渲染<b>真机已证</b>；GS ( A 已移除（真机证实其吐 dump 横幅而非配置页），固件配置自检页仍需硬件键；全点行在当前码页为字符行、非实心黑条（缺针测试受限）；改打印机模式（标签↔小票）属改配置、可能影响收银打印，未做。
       </div>
     </div>
     <div class="card">
